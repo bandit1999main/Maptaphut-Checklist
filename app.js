@@ -1074,6 +1074,8 @@ async function openTaskDetailsModal(taskId) {
     const attachmentsContainer = document.getElementById('detail-attachments-container');
     attachmentsContainer.innerHTML = '';
     
+    let gdrivePdfId = null;
+    
     if (attachments.length === 0) {
         attachmentsContainer.innerHTML = `<div style="color: var(--text-muted); font-size: 0.85rem; font-style: italic; padding: 0.5rem 0;">ไม่มีเอกสารแนบในงานชิ้นนี้</div>`;
     } else {
@@ -1083,24 +1085,56 @@ async function openTaskDetailsModal(taskId) {
             
             const sizeFormatted = formatFileSize(att.fileSize);
             
+            // Detect Google Drive attachments
+            const isGDrive = att.storageType === 'google_drive' || !!att.googleDriveFileId;
+            const isPdf = att.fileType === 'application/pdf' || att.fileName.toLowerCase().endsWith('.pdf');
+            if (isGDrive && isPdf && !gdrivePdfId) {
+                gdrivePdfId = att.googleDriveFileId;
+            }
+            
             item.innerHTML = `
                 <div class="file-info">
-                    <i data-lucide="file-check" class="file-icon" style="color: var(--status-done);"></i>
+                    <i data-lucide="${isGDrive ? 'cloud-lightning' : 'file-check'}" class="file-icon" style="color: ${isGDrive ? 'var(--accent-earth)' : 'var(--status-done)'};"></i>
                     <span class="file-name" title="${att.fileName}">${att.fileName}</span>
                     <span class="file-size">(${sizeFormatted})</span>
                 </div>
                 <div class="attachment-actions">
-                    <button class="icon-btn download-btn" title="ดาวน์โหลดเอกสาร"><i data-lucide="download"></i></button>
+                    ${isGDrive ? `
+                        <a href="${att.googleDriveLink || `https://drive.google.com/file/d/${att.googleDriveFileId}/view`}" target="_blank" class="icon-btn download-btn" title="เปิดดูใน Google Drive"><i data-lucide="external-link"></i></a>
+                    ` : `
+                        <button class="icon-btn download-btn" title="ดาวน์โหลดเอกสาร"><i data-lucide="download"></i></button>
+                    `}
                 </div>
             `;
             
-            // Register download function
-            item.querySelector('.download-btn').addEventListener('click', async () => {
-                await downloadAttachmentFile(att.id);
-            });
+            if (!isGDrive) {
+                // Register download function for local base64/IndexedDB binary files
+                item.querySelector('.download-btn').addEventListener('click', async () => {
+                    await downloadAttachmentFile(att.id);
+                });
+            }
             
             attachmentsContainer.appendChild(item);
         });
+    }
+    
+    // Embed Google Drive PDF Viewer iframe if a PDF file is present!
+    const previewWrapperId = 'gdrive-pdf-preview-wrapper';
+    let previewWrapper = document.getElementById(previewWrapperId);
+    if (previewWrapper) previewWrapper.remove(); // Clear old instances
+    
+    if (gdrivePdfId) {
+        previewWrapper = document.createElement('div');
+        previewWrapper.id = previewWrapperId;
+        previewWrapper.style.marginTop = '1.5rem';
+        previewWrapper.innerHTML = `
+            <div class="detail-desc-title" style="display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.5rem;">
+                <i data-lucide="eye" style="width: 16px; height: 16px; color: var(--accent-earth);"></i>
+                <span>พรีวิวตัวอย่างเอกสาร PDF (Google Drive)</span>
+            </div>
+            <iframe src="https://drive.google.com/file/d/${gdrivePdfId}/preview" class="gdrive-preview-iframe" allow="autoplay" style="border: 1px solid var(--glass-border); border-radius: 12px; width: 100%; height: 400px; background: #ffffff;"></iframe>
+        `;
+        attachmentsContainer.parentNode.appendChild(previewWrapper);
     }
     
     // Wire modal buttons
@@ -1445,6 +1479,9 @@ function renderSyncSettings() {
         statusDesc.textContent = 'ข้อมูลทั้งหมดจะถูกเซฟไว้อย่างปลอดภัยในหน่วยความจำบราวเซอร์บนคอมพิวเตอร์เครื่องนี้เท่านั้น ไม่สามารถเปิดดูจากเครื่องอื่นได้';
         document.getElementById('sync-migration-box').classList.add('hidden');
     }
+
+    // Render Google Drive Settings dynamically!
+    renderGDriveSettings();
 }
 
 // Check if IndexedDB has any data, if yes, show migration card in Cloud Sync view
@@ -1642,4 +1679,120 @@ function setupSyncSettings() {
             progressContainer.classList.add('hidden');
         }
     });
+
+    // Register Google Drive form controllers
+    setupGDriveSettings();
+}
+
+/**
+ * ====================================================
+ * Google Drive Storage Settings Controllers (Option A)
+ * ====================================================
+ */
+
+// Render Google Drive settings values and live authorization states
+function renderGDriveSettings() {
+    const clientIdInput = document.getElementById('gdrive-client-id');
+    const apiKeyInput = document.getElementById('gdrive-api-key');
+    const folderIdInput = document.getElementById('gdrive-folder-id');
+
+    const saveBtn = document.getElementById('btn-save-gdrive-config');
+    const connectBtn = document.getElementById('btn-connect-gdrive');
+    const connectText = document.getElementById('txt-connect-gdrive');
+    
+    const statusCard = document.getElementById('gdrive-status-card');
+    const statusDot = document.getElementById('gdrive-status-dot');
+    const statusTitle = document.getElementById('gdrive-status-title');
+    const statusDesc = document.getElementById('gdrive-status-desc');
+
+    if (!clientIdInput || !apiKeyInput || !folderIdInput) return;
+
+    // Load configurations from global TaskDB
+    const config = window.TaskDB.gdriveConfig;
+    clientIdInput.value = config.clientId || '';
+    apiKeyInput.value = config.apiKey || '';
+    folderIdInput.value = config.folderId || '';
+
+    // Check if Google Drive access token is validated and loaded
+    const isReady = window.TaskDB.isGDriveReady();
+
+    if (isReady) {
+        statusCard.className = 'sync-status-card status-online';
+        statusDot.style.background = '#7a9a84'; // Cozy Sage Green
+        statusTitle.textContent = 'สถานะ: 🟢 เชื่อมต่อ Google Drive สำเร็จ';
+        statusDesc.textContent = 'บัญชีคลาวด์ของคุณเชื่อมต่อและพร้อมสำหรับรับอัปโหลดไฟล์เอกสารหน้างานขนาดใหญ่ (PDF) แล้ว! ไม่จำกัดโควต้า Firestore';
+        
+        connectText.textContent = 'เชื่อมต่อบัญชีใหม่ / สลับบัญชี';
+        connectBtn.style.background = 'rgba(122, 154, 132, 0.1)';
+        connectBtn.style.color = 'var(--accent-sage)';
+        connectBtn.style.borderColor = 'rgba(122, 154, 132, 0.3)';
+    } else {
+        statusCard.className = 'sync-status-card status-offline';
+        statusDot.style.background = '#e0a96d'; // Cozy Warm Sand
+        
+        if (config.clientId && config.apiKey) {
+            statusTitle.textContent = 'สถานะ: 🟡 บันทึกการตั้งค่าแล้ว (รอเชื่อมบัญชี)';
+            statusDesc.textContent = 'ข้อมูลคีย์จัดเก็บในบราวเซอร์แล้ว กรุณากดปุ่ม "ลงชื่อเข้าใช้งาน Google Drive" ด้านล่างเพื่อมอบสิทธิ์ความปลอดภัย';
+        } else {
+            statusTitle.textContent = 'สถานะ: ⚪ ยังไม่ได้ตั้งค่า Google Drive';
+            statusDesc.textContent = 'กรุณากรอก OAuth Client ID และ API Key จาก Google Cloud Console เพื่อเริ่มต้นติดตั้งระบบเก็บไฟล์ส่วนตัว';
+        }
+        
+        connectText.textContent = 'ลงชื่อเข้าใช้งาน Google Drive';
+        connectBtn.style.background = 'rgba(181, 137, 112, 0.1)';
+        connectBtn.style.color = 'var(--accent-earth)';
+        connectBtn.style.borderColor = 'rgba(181, 137, 112, 0.3)';
+    }
+}
+
+// Setup Google Drive click listener rules
+function setupGDriveSettings() {
+    const saveBtn = document.getElementById('btn-save-gdrive-config');
+    const connectBtn = document.getElementById('btn-connect-gdrive');
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const clientId = document.getElementById('gdrive-client-id').value.trim();
+            const apiKey = document.getElementById('gdrive-api-key').value.trim();
+            const folderId = document.getElementById('gdrive-folder-id').value.trim();
+
+            if (!clientId || !apiKey) {
+                alert("กรุณากรอก Google Client ID และ Developer API Key ก่อนทำการบันทึก");
+                return;
+            }
+
+            window.TaskDB.saveGDriveConfig(clientId, apiKey, folderId);
+            alert("บันทึกคอนฟิกสำเร็จ! 💾\nขั้นตอนสุดท้าย: กรุณากดปุ่ม 'ลงชื่อเข้าใช้งาน Google Drive' สีส้มด้านข้าง เพื่อทำสิทธิ์ OAuth 2.0");
+            renderGDriveSettings();
+        });
+    }
+
+    if (connectBtn) {
+        connectBtn.addEventListener('click', async () => {
+            const config = window.TaskDB.gdriveConfig;
+            if (!config.clientId) {
+                alert("กรุณากรอกข้อมูล Google Client ID ด้านซ้ายมือ และกดบันทึกก่อนเชื่อมต่อ");
+                return;
+            }
+
+            connectBtn.disabled = true;
+            const originalHTML = connectBtn.innerHTML;
+            connectBtn.innerHTML = '<span>กำลังเชื่อมต่อบัญชี Google Cloud...</span>';
+
+            try {
+                const token = await window.TaskDB.signInGDrive();
+                if (token) {
+                    alert("เชื่อมต่อบัญชี Google Drive เรียบร้อยแล้ว! 🎉 ระบบพร้อมใช้จัดเก็บไฟล์แนบทั้งหมดทันที");
+                }
+                renderGDriveSettings();
+            } catch (err) {
+                console.error("Google Drive implicit connection failure:", err);
+                alert("การเชื่อมต่อบัญชีล้มเหลว: " + err.message);
+            } finally {
+                connectBtn.disabled = false;
+                connectBtn.innerHTML = originalHTML;
+                lucide.createIcons();
+            }
+        });
+    }
 }

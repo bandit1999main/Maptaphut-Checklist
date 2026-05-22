@@ -26,12 +26,186 @@ window.TaskDB = {
     firebaseApp: null,  // Firebase App reference
     firestore: null,    // Cloud Firestore reference
     storage: null,      // Cloud Storage reference
+    
+    // Google Drive Configurations (Option A)
+    gdriveConfig: {
+        clientId: '',
+        apiKey: '',
+        folderId: ''
+    },
+    gdriveAccessToken: null,
+    gdriveTokenExpiresAt: 0,
+
+    /**
+     * Load Google Drive config from localStorage & active session
+     */
+    loadGDriveConfig() {
+        const savedClientId = localStorage.getItem('finance_checklist_gdrive_client_id') || '';
+        const savedApiKey = localStorage.getItem('finance_checklist_gdrive_api_key') || '';
+        const savedFolderId = localStorage.getItem('finance_checklist_gdrive_folder_id') || '';
+        
+        this.gdriveConfig = {
+            clientId: savedClientId,
+            apiKey: savedApiKey,
+            folderId: savedFolderId
+        };
+        
+        // Retrieve session token
+        this.gdriveAccessToken = sessionStorage.getItem('finance_checklist_gdrive_access_token') || null;
+        this.gdriveTokenExpiresAt = parseInt(sessionStorage.getItem('finance_checklist_gdrive_token_expires_at') || '0', 10);
+    },
+
+    /**
+     * Save Google Drive config to localStorage
+     */
+    saveGDriveConfig(clientId, apiKey, folderId) {
+        localStorage.setItem('finance_checklist_gdrive_client_id', clientId);
+        localStorage.setItem('finance_checklist_gdrive_api_key', apiKey);
+        localStorage.setItem('finance_checklist_gdrive_folder_id', folderId);
+        
+        this.gdriveConfig = { clientId, apiKey, folderId };
+    },
+
+    /**
+     * Clear Google Drive config and session tokens
+     */
+    clearGDriveConfig() {
+        localStorage.removeItem('finance_checklist_gdrive_client_id');
+        localStorage.removeItem('finance_checklist_gdrive_api_key');
+        localStorage.removeItem('finance_checklist_gdrive_folder_id');
+        sessionStorage.removeItem('finance_checklist_gdrive_access_token');
+        sessionStorage.removeItem('finance_checklist_gdrive_token_expires_at');
+        
+        this.gdriveConfig = { clientId: '', apiKey: '', folderId: '' };
+        this.gdriveAccessToken = null;
+        this.gdriveTokenExpiresAt = 0;
+    },
+
+    /**
+     * Check if Google Drive is configured and authenticated
+     */
+    isGDriveReady() {
+        return this.gdriveConfig.clientId && 
+               this.gdriveConfig.apiKey && 
+               this.gdriveAccessToken && 
+               Date.now() < this.gdriveTokenExpiresAt;
+    },
+
+    /**
+     * Launch Google Identity Services OAuth 2.0 Sign In
+     * @returns {Promise<String>}
+     */
+    signInGDrive() {
+        return new Promise((resolve, reject) => {
+            if (!this.gdriveConfig.clientId) {
+                return reject(new Error("กรุณากรอก Google Client ID ในการตั้งค่าและกดบันทึกก่อน"));
+            }
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+                return reject(new Error("ไลบรารี Google Identity Services ยังโหลดไม่เสร็จ กรุณารอสักครู่แล้วกดใหม่อีกครั้ง"));
+            }
+
+            try {
+                const tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: this.gdriveConfig.clientId,
+                    scope: 'https://www.googleapis.com/auth/drive.file', // safe & scoped access
+                    callback: (response) => {
+                        if (response.error !== undefined) {
+                            console.error("OAuth error:", response);
+                            return reject(new Error("เข้าสู่ระบบไม่สำเร็จ: " + response.error));
+                        }
+
+                        this.gdriveAccessToken = response.access_token;
+                        this.gdriveTokenExpiresAt = Date.now() + (response.expires_in * 1000);
+
+                        sessionStorage.setItem('finance_checklist_gdrive_access_token', this.gdriveAccessToken);
+                        sessionStorage.setItem('finance_checklist_gdrive_token_expires_at', this.gdriveTokenExpiresAt.toString());
+
+                        resolve(this.gdriveAccessToken);
+                    }
+                });
+
+                tokenClient.requestAccessToken({ prompt: 'consent' });
+            } catch (err) {
+                console.error("GSI init failure:", err);
+                reject(err);
+            }
+        });
+    },
+
+    /**
+     * Upload File Blob to Google Drive using multipart upload
+     * @param {String} fileName 
+     * @param {String} fileType 
+     * @param {Blob} blob 
+     * @returns {Promise<Object>}
+     */
+    async uploadToGoogleDrive(fileName, fileType, blob) {
+        if (!this.isGDriveReady()) {
+            throw new Error("Google Drive Token หมดอายุหรือยังไม่พร้อมใช้งาน กรุณากดลงชื่อเข้าใช้อีกครั้ง");
+        }
+
+        const metadata = {
+            name: fileName,
+            mimeType: fileType
+        };
+
+        if (this.gdriveConfig.folderId) {
+            metadata.parents = [this.gdriveConfig.folderId];
+        }
+
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', blob);
+
+        const uploadUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink';
+        const response = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${this.gdriveAccessToken}`
+            },
+            body: form
+        });
+
+        if (!response.ok) {
+            const errStr = await response.text();
+            console.error("Gdrive API error response:", errStr);
+            throw new Error("อัปโหลดไฟล์ไป Google Drive ล้มเหลว: " + response.statusText);
+        }
+
+        return await response.json(); // contains { id, name, webViewLink }
+    },
+
+    /**
+     * Delete file from Google Drive
+     * @param {String} fileId 
+     * @returns {Promise<Boolean>}
+     */
+    async deleteFromGoogleDrive(fileId) {
+        if (!this.isGDriveReady()) return false;
+
+        try {
+            const deleteUrl = `https://www.googleapis.com/drive/v3/files/${fileId}`;
+            const response = await fetch(deleteUrl, {
+                method: 'DELETE',
+                headers: {
+                    Authorization: `Bearer ${this.gdriveAccessToken}`
+                }
+            });
+            return response.ok;
+        } catch (err) {
+            console.error("Gdrive deletion failure:", err);
+            return false;
+        }
+    },
 
     /**
      * Initialize the Database Router
      * @returns {Promise<any>} Resolves when initialized
      */
     init() {
+        // Load Google Drive Config from Storage
+        this.loadGDriveConfig();
+
         return new Promise((resolve, reject) => {
             // Check if Firebase config is saved in localStorage
             const savedConfigStr = localStorage.getItem('finance_checklist_firebase_config');
@@ -339,29 +513,68 @@ window.TaskDB = {
      */
     saveAttachment(attachment) {
         if (this.mode === 'firebase') {
-            // Helper to convert blob to base64
-            const blobToDataURL = (blob) => {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-            };
-
-            return blobToDataURL(attachment.blob).then((dataUrl) => {
-                const metadata = {
-                    id: attachment.id,
-                    taskId: attachment.taskId,
-                    fileName: attachment.fileName,
-                    fileSize: attachment.fileSize,
-                    fileType: attachment.fileType,
-                    dataUrl: dataUrl, // Save directly as base64 in Firestore!
-                    createdAt: new Date().toISOString()
-                };
-                return this.firestore.collection(`${this.prefix}attachments`).doc(attachment.id).set(metadata);
-            }).then(() => true);
+            // If Google Drive configuration is ready, upload to Google Drive!
+            if (this.isGDriveReady()) {
+                return this.uploadToGoogleDrive(attachment.fileName, attachment.fileType, attachment.blob)
+                    .then((gdriveFile) => {
+                        const metadata = {
+                            id: attachment.id,
+                            taskId: attachment.taskId,
+                            fileName: attachment.fileName,
+                            fileSize: attachment.fileSize,
+                            fileType: attachment.fileType,
+                            storageType: 'google_drive',
+                            googleDriveFileId: gdriveFile.id,
+                            googleDriveLink: gdriveFile.webViewLink,
+                            dataUrl: '', // Empty, as it is safely stored in Google Drive!
+                            createdAt: new Date().toISOString()
+                        };
+                        return this.firestore.collection(`${this.prefix}attachments`).doc(attachment.id).set(metadata);
+                    })
+                    .then(() => true)
+                    .catch((err) => {
+                        console.error("Google Drive upload failed, falling back to Firestore base64:", err);
+                        // Fallback logic
+                        return this._saveAttachmentAsBase64(attachment);
+                    });
+            } else {
+                return this._saveAttachmentAsBase64(attachment);
+            }
         }
+
+        return this._transaction('attachments', 'readwrite', (store) => {
+            return store.put(attachment);
+        });
+    },
+
+    /**
+     * Helper to save attachment as Base64 in Firestore
+     * @private
+     */
+    _saveAttachmentAsBase64(attachment) {
+        const blobToDataURL = (blob) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        };
+
+        return blobToDataURL(attachment.blob).then((dataUrl) => {
+            const metadata = {
+                id: attachment.id,
+                taskId: attachment.taskId,
+                fileName: attachment.fileName,
+                fileSize: attachment.fileSize,
+                fileType: attachment.fileType,
+                storageType: 'firestore_base64',
+                dataUrl: dataUrl,
+                createdAt: new Date().toISOString()
+            };
+            return this.firestore.collection(`${this.prefix}attachments`).doc(attachment.id).set(metadata);
+        }).then(() => true);
+    },
 
         return this._transaction('attachments', 'readwrite', (store) => {
             return store.put(attachment);
@@ -434,7 +647,17 @@ window.TaskDB = {
      */
     deleteAttachment(attachmentId) {
         if (this.mode === 'firebase') {
-            return this.firestore.collection(`${this.prefix}attachments`).doc(attachmentId).delete().then(() => true);
+            const docRef = this.firestore.collection(`${this.prefix}attachments`).doc(attachmentId);
+            return docRef.get().then(doc => {
+                const data = doc.data();
+                if (data && data.storageType === 'google_drive' && data.googleDriveFileId) {
+                    // Call Google Drive Delete API in background (non-blocking)
+                    this.deleteFromGoogleDrive(data.googleDriveFileId).catch(err => {
+                        console.warn("Failed to delete file from Google Drive:", err);
+                    });
+                }
+                return docRef.delete();
+            }).then(() => true);
         }
 
         return this._transaction('attachments', 'readwrite', (store) => {

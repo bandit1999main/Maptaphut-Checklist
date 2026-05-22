@@ -21,6 +21,9 @@
     
     <!-- Lucide Icons (Minimalistic Modern Icons) -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Google Identity Services for OAuth 2.0 (Google Drive Integration) -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -416,9 +419,90 @@ const firebaseConfig = {
                                     </ul>
                                 </li>
                             </ol>
+                    </div>
+                </div>
+
+                <!-- Google Drive Configuration Card (5 TB Private Storage) -->
+                <div class="glass-card gdrive-settings-container" style="margin-top: 2rem; display: grid; grid-template-columns: 1.2fr 1fr; gap: 0; padding: 0 !important; overflow: hidden;">
+                    <!-- Form Section -->
+                    <div class="sync-form-section">
+                        <div class="chart-title" style="margin-bottom: 1rem;">
+                            <i data-lucide="hard-drive" style="color: var(--accent-earth);"></i>
+                            <span>ตั้งค่าจัดเก็บเอกสารและไฟล์แนบบน Google Drive (5 TB)</span>
+                        </div>
+                        
+                        <p class="sync-intro-text" style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.5rem;">
+                            เชื่อมต่อกับบัญชี Google Drive ของคุณ เพื่อบันทึกรูปภาพหน้างานและไฟล์เอกสาร PDF ขนาดใหญ่จากแบบตรวจสอบ Checklist ได้โดยตรง ปลดล็อกข้อจำกัด 1MB ของ Firestore ทันที!
+                        </p>
+
+                        <!-- Google Credentials Inputs -->
+                        <div class="form-group">
+                            <label for="gdrive-client-id">Google Client ID (OAuth 2.0 Client ID)</label>
+                            <input type="text" class="form-control" id="gdrive-client-id" placeholder="ตัวอย่าง: 123456-abcdef.apps.googleusercontent.com">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="gdrive-api-key">Developer API Key</label>
+                            <input type="password" class="form-control" id="gdrive-api-key" placeholder="ป้อน Developer API Key (เพื่อความปลอดภัยรหัสจะแสดงเป็นจุด)">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="gdrive-folder-id">รหัสโฟลเดอร์ Google Drive (Folder ID) - *ถ้าปล่อยว่างระบบจะอัปโหลดไว้ไดรฟ์หลัก*</label>
+                            <input type="text" class="form-control" id="gdrive-folder-id" placeholder="ตัวอย่าง: 1a2B3c4D5e6F7g8H9i0JkLmN">
+                        </div>
+
+                        <div class="sync-actions" style="margin-top: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                            <button class="btn-primary" id="btn-save-gdrive-config" style="background: var(--accent-earth);">
+                                <i data-lucide="save"></i>
+                                <span>บันทึกการตั้งค่า Google Drive</span>
+                            </button>
+                            
+                            <button class="btn-secondary" id="btn-connect-gdrive" style="background: rgba(181, 137, 112, 0.1); color: var(--accent-earth); border: 1px solid rgba(181, 137, 112, 0.3);">
+                                <i data-lucide="log-in"></i>
+                                <span id="txt-connect-gdrive">ลงชื่อเข้าใช้งาน Google Drive</span>
+                            </button>
                         </div>
                     </div>
 
+                    <!-- Sidebar Info Section -->
+                    <div class="sync-info-section" style="border-left: 1px solid var(--glass-border);">
+                        <div class="chart-title" style="margin-bottom: 1rem;">
+                            <i data-lucide="help-circle" style="color: var(--accent-indigo);"></i>
+                            <span>สถานะและคู่มือการตั้งค่า</span>
+                        </div>
+
+                        <!-- Live Status Card for Google Drive -->
+                        <div class="sync-status-card status-offline" id="gdrive-status-card" style="border: 1px solid var(--glass-border); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <div class="status-indicator-dot" id="gdrive-status-dot" style="background: #e0a96d;"></div>
+                            <div class="status-card-details">
+                                <div class="status-title" id="gdrive-status-title" style="font-weight: 600; font-size: 0.9rem; color: var(--text-primary);">สถานะ: ยังไม่ได้เชื่อมต่อ Google Drive</div>
+                                <div class="status-desc" id="gdrive-status-desc" style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">กรุณากรอก Client ID และ API Key ด้านซ้าย กดปุ่มบันทึก จากนั้นกดปุ่มลงชื่อเข้าใช้เพื่อเปิดสิทธิ์การเข้าถึงโฟลเดอร์</div>
+                            </div>
+                        </div>
+
+                        <!-- Tutorial Guide -->
+                        <div class="sync-tutorial-guide" style="font-size: 0.8rem; background: rgba(255, 255, 255, 0.5); padding: 1rem; border-radius: 8px; border: 1px dashed rgba(181, 137, 112, 0.3);">
+                            <h5 style="font-weight: 700; margin-bottom: 0.5rem; color: var(--accent-earth);">🛠️ วิธีสร้าง Client ID & API Key ฟรีบนคลาวด์ Google</h5>
+                            <ol style="padding-left: 1rem; display: flex; flex-direction: column; gap: 0.35rem; margin: 0; font-size: 0.75rem; line-height: 1.4;">
+                                <li>เปิดหน้าเว็บ <a href="https://console.cloud.google.com/" target="_blank" style="color: var(--accent-earth); font-weight: 600; text-decoration: underline;">Google Cloud Console</a> แล้วกดล็อกอิน</li>
+                                <li>เปิดบริการ **API & Services** -> ค้นหาและกด **Enable** บริการ **Google Drive API**</li>
+                                <li>ไปที่เมนู **OAuth consent screen**:
+                                    <ul style="padding-left: 1rem; list-style-type: disc;">
+                                        <li>เลือกประเภทผู้ใช้เป็น **External** หรือ **Internal** (กรณีบัญชีบริษัทแนะนำ Internal)</li>
+                                        <li>กรอกชื่อแอปและเพิ่มอีเมลของคุณ จากนั้นกดบันทึก</li>
+                                    </ul>
+                                </li>
+                                <li>ไปที่หน้า **Credentials**:
+                                    <ul style="padding-left: 1rem; list-style-type: disc;">
+                                        <li>คลิก **Create Credentials** -> เลือก **API Key** (คัดลอกมาใส่ช่อง API Key)</li>
+                                        <li>คลิก **Create Credentials** -> เลือก **OAuth client ID** -> เลือกประเภทเป็น **Web application**</li>
+                                        <li>ในช่อง **Authorized JavaScript origins** ให้เพิ่ม URL เว็บ Checklist นี้ เช่น `https://bandit1999main.github.io` และ `http://localhost:5500`</li>
+                                    </ul>
+                                </li>
+                                <li>กดบันทึกแล้วนำ **Client ID** ยาวๆ ที่ได้มาใส่ในช่องด้านซ้าย</li>
+                            </ol>
+                        </div>
+                    </div>
                 </div>
             </section>
 
