@@ -1339,19 +1339,39 @@ async function confirmDeleteCategory(catId, name, taskCount) {
 function updateDbModeUI() {
     const dbModeEl = document.getElementById('sidebar-db-mode');
     const dbDescEl = document.getElementById('sidebar-db-desc');
-    
-    if (!dbModeEl) return;
+    const mobileDbBadgeEl = document.getElementById('mobile-db-badge');
+    const mobileDbTextEl = document.getElementById('mobile-db-text');
     
     if (window.TaskDB.mode === 'firebase') {
-        dbModeEl.textContent = 'Cloud Sync';
-        dbModeEl.style.background = 'rgba(115, 124, 104, 0.15)';
-        dbModeEl.style.color = 'var(--status-done)';
-        dbDescEl.textContent = `คลาวด์เรียลไทม์ (Namespace: ${window.TaskDB.prefix})`;
+        if (dbModeEl) {
+            dbModeEl.textContent = 'Cloud Sync';
+            dbModeEl.style.background = 'rgba(115, 124, 104, 0.15)';
+            dbModeEl.style.color = 'var(--status-done)';
+        }
+        if (dbDescEl) {
+            dbDescEl.textContent = `คลาวด์เรียลไทม์ (Namespace: ${window.TaskDB.prefix})`;
+        }
+        if (mobileDbBadgeEl && mobileDbTextEl) {
+            mobileDbTextEl.textContent = 'Cloud Sync';
+            mobileDbBadgeEl.style.background = 'rgba(115, 124, 104, 0.15)';
+            mobileDbBadgeEl.style.color = 'var(--status-done)';
+            mobileDbBadgeEl.style.borderColor = 'rgba(115, 124, 104, 0.3)';
+        }
     } else {
-        dbModeEl.textContent = 'Local DB';
-        dbModeEl.style.background = 'rgba(181, 137, 112, 0.15)';
-        dbModeEl.style.color = 'var(--accent-earth)';
-        dbDescEl.textContent = 'Local Storage & IndexedDB';
+        if (dbModeEl) {
+            dbModeEl.textContent = 'Local DB';
+            dbModeEl.style.background = 'rgba(181, 137, 112, 0.15)';
+            dbModeEl.style.color = 'var(--accent-earth)';
+        }
+        if (dbDescEl) {
+            dbDescEl.textContent = 'Local Storage & IndexedDB';
+        }
+        if (mobileDbBadgeEl && mobileDbTextEl) {
+            mobileDbTextEl.textContent = 'Local DB';
+            mobileDbBadgeEl.style.background = 'rgba(181, 137, 112, 0.15)';
+            mobileDbBadgeEl.style.color = 'var(--accent-earth)';
+            mobileDbBadgeEl.style.borderColor = 'rgba(181, 137, 112, 0.3)';
+        }
     }
 }
 
