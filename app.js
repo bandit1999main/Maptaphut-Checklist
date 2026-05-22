@@ -56,8 +56,11 @@ const AppState = {
 // ====================================================
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        // Initialize IndexedDB
+        // Initialize Database Router (Firebase or IndexedDB)
         await window.TaskDB.init();
+        
+        // Update DB mode indicator in UI
+        updateDbModeUI();
         
         // Load or initialize categories
         await loadCategories();
@@ -69,6 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupNavigation();
         setupCategoryForm();
         setupTaskForm();
+        setupSyncSettings(); // Initialize Cloud Sync settings page listeners
         renderView();
         
         // Start live countdown updater (updates every minute)
@@ -151,16 +155,19 @@ function setupNavigation() {
     const navDashboard = document.getElementById('btn-nav-dashboard');
     const navTasks = document.getElementById('btn-nav-tasks');
     const navCategories = document.getElementById('btn-nav-categories');
+    const navSync = document.getElementById('btn-nav-sync');
     
     const menuDashboardLi = document.getElementById('menu-dashboard-li');
     const menuTasksLi = document.getElementById('menu-tasks-li');
     const menuCategoriesLi = document.getElementById('menu-categories-li');
+    const menuSyncLi = document.getElementById('menu-sync-li');
     
     const btnCreateTaskMain = document.getElementById('btn-create-task-main');
     
     navDashboard.addEventListener('click', () => switchView('dashboard'));
     navTasks.addEventListener('click', () => switchView('tasks'));
     navCategories.addEventListener('click', () => switchView('categories'));
+    navSync.addEventListener('click', () => switchView('sync'));
     
     btnCreateTaskMain.addEventListener('click', () => {
         openTaskModal();
@@ -173,11 +180,13 @@ function setupNavigation() {
         menuDashboardLi.classList.remove('active');
         menuTasksLi.classList.remove('active');
         menuCategoriesLi.classList.remove('active');
+        menuSyncLi.classList.remove('active');
         
         // Hide all views
         document.getElementById('view-dashboard').classList.add('hidden');
         document.getElementById('view-tasks').classList.add('hidden');
         document.getElementById('view-categories').classList.add('hidden');
+        document.getElementById('view-sync').classList.add('hidden');
         
         // Show active view & menu item
         if (viewName === 'dashboard') {
@@ -195,6 +204,12 @@ function setupNavigation() {
             document.getElementById('view-categories').classList.remove('hidden');
             document.getElementById('page-title-text').textContent = 'จัดการหมวดหมู่/ประเภทงาน';
             document.getElementById('page-subtitle-text').textContent = 'เพิ่ม หมวดหมู่เฉพาะ เพื่อความยืดหยุ่นในการจัดหมวดหมู่เอกสารและงานบัญชี';
+        } else if (viewName === 'sync') {
+            menuSyncLi.classList.add('active');
+            document.getElementById('view-sync').classList.remove('hidden');
+            document.getElementById('page-title-text').textContent = 'ระบบเชื่อมต่อคลาวด์และแบ่งปัน (Cloud Sync)';
+            document.getElementById('page-subtitle-text').textContent = 'เชื่อมโยงฐานข้อมูลส่วนกลางผ่าน Google Firebase และย้ายข้อมูลของคุณขึ้น Cloud';
+            renderSyncSettings();
         }
         
         renderView();
@@ -209,6 +224,8 @@ function renderView() {
         renderTasksList();
     } else if (AppState.currentView === 'categories') {
         renderCategoriesList();
+    } else if (AppState.currentView === 'sync') {
+        renderSyncSettings();
     }
 }
 
@@ -1089,11 +1106,30 @@ async function openTaskDetailsModal(taskId) {
     lucide.createIcons();
 }
 
-// Download binary attachment from IndexedDB
+// Download binary attachment from IndexedDB / Cloud Storage
 async function downloadAttachmentFile(attachmentId) {
     const att = await window.TaskDB.getAttachment(attachmentId);
-    if (!att || !att.blob) {
+    if (!att) {
         alert("ไม่พบไฟล์เอกสารแนบ หรือไฟล์เกิดข้อผิดพลาด");
+        return;
+    }
+    
+    // In Firebase mode, if fetching the blob directly failed (CORS block),
+    // getAttachment will return isDirectUrl: true. We can open the link in a new tab!
+    if (att.isDirectUrl && att.downloadURL) {
+        // Open downloadURL in a new tab as fallback
+        const win = window.open(att.downloadURL, '_blank');
+        if (win) {
+            win.focus();
+        } else {
+            // Fallback to window navigation
+            window.location.href = att.downloadURL;
+        }
+        return;
+    }
+
+    if (!att.blob) {
+        alert("ไม่สามารถเข้าถึงไฟล์เอกสารแนบชิ้นนี้ได้");
         return;
     }
     
@@ -1276,4 +1312,288 @@ async function confirmDeleteCategory(catId, name, taskCount) {
         await loadCategories();
         renderCategoriesList();
     }
+}
+
+// ====================================================
+// 10. FIREBASE CLOUD SYNC CONTROLLER
+// ====================================================
+
+// Update dynamic database mode indicators in the sidebar and other regions
+function updateDbModeUI() {
+    const dbModeEl = document.getElementById('sidebar-db-mode');
+    const dbDescEl = document.getElementById('sidebar-db-desc');
+    
+    if (!dbModeEl) return;
+    
+    if (window.TaskDB.mode === 'firebase') {
+        dbModeEl.textContent = 'Cloud Sync';
+        dbModeEl.style.background = 'rgba(115, 124, 104, 0.15)';
+        dbModeEl.style.color = 'var(--status-done)';
+        dbDescEl.textContent = `คลาวด์เรียลไทม์ (Namespace: ${window.TaskDB.prefix})`;
+    } else {
+        dbModeEl.textContent = 'Local DB';
+        dbModeEl.style.background = 'rgba(181, 137, 112, 0.15)';
+        dbModeEl.style.color = 'var(--accent-earth)';
+        dbDescEl.textContent = 'Local Storage & IndexedDB';
+    }
+}
+
+// Render Firebase Settings View state
+function renderSyncSettings() {
+    const apiKeyInput = document.getElementById('sync-apiKey');
+    const authDomainInput = document.getElementById('sync-authDomain');
+    const projectIdInput = document.getElementById('sync-projectId');
+    const storageBucketInput = document.getElementById('sync-storageBucket');
+    const messagingSenderIdInput = document.getElementById('sync-messagingSenderId');
+    const appIdInput = document.getElementById('sync-appId');
+    const prefixInput = document.getElementById('sync-prefix');
+    const configJsonInput = document.getElementById('sync-config-json');
+    
+    const saveBtn = document.getElementById('btn-save-sync');
+    const disconnectBtn = document.getElementById('btn-disconnect-sync');
+    const statusCard = document.getElementById('sync-status-card');
+    const statusTitle = document.getElementById('sync-status-title');
+    const statusDesc = document.getElementById('sync-status-desc');
+
+    // Populate current values from localStorage
+    const savedConfigStr = localStorage.getItem('finance_checklist_firebase_config');
+    const savedPrefix = localStorage.getItem('finance_checklist_firebase_prefix') || 'finance_';
+    
+    prefixInput.value = savedPrefix;
+    configJsonInput.value = '';
+
+    if (savedConfigStr) {
+        try {
+            const config = JSON.parse(savedConfigStr);
+            apiKeyInput.value = config.apiKey || '';
+            authDomainInput.value = config.authDomain || '';
+            projectIdInput.value = config.projectId || '';
+            storageBucketInput.value = config.storageBucket || '';
+            messagingSenderIdInput.value = config.messagingSenderId || '';
+            appIdInput.value = config.appId || '';
+            
+            // Set dynamic button visibility
+            disconnectBtn.classList.remove('hidden');
+        } catch (e) {
+            console.error(e);
+        }
+    } else {
+        apiKeyInput.value = '';
+        authDomainInput.value = '';
+        projectIdInput.value = '';
+        storageBucketInput.value = '';
+        messagingSenderIdInput.value = '';
+        appIdInput.value = '';
+        disconnectBtn.classList.add('hidden');
+    }
+
+    // Render status card
+    if (window.TaskDB.mode === 'firebase') {
+        statusCard.className = 'sync-status-card status-online';
+        statusTitle.textContent = 'สถานะ: 🟢 เชื่อมต่อ Cloud สำเร็จ';
+        statusDesc.textContent = `แอปพลิเคชันกำลังเชื่อมโยงและแบ่งปันข้อมูลแบบเรียลไทม์กับทีมงานผ่านบัญชี Firebase คอนฟิกโครงการ "${window.TaskDB.firestore.app.options.projectId}" (ตารางนำหน้า: ${window.TaskDB.prefix})`;
+        
+        // Show migration option ONLY if there is data in IndexedDB
+        checkAndShowMigration();
+    } else {
+        statusCard.className = 'sync-status-card status-offline';
+        statusTitle.textContent = 'สถานะ: 🟡 โหมดใช้งานในเครื่อง (Offline Mode)';
+        statusDesc.textContent = 'ข้อมูลทั้งหมดจะถูกเซฟไว้อย่างปลอดภัยในหน่วยความจำบราวเซอร์บนคอมพิวเตอร์เครื่องนี้เท่านั้น ไม่สามารถเปิดดูจากเครื่องอื่นได้';
+        document.getElementById('sync-migration-box').classList.add('hidden');
+    }
+}
+
+// Check if IndexedDB has any data, if yes, show migration card in Cloud Sync view
+async function checkAndShowMigration() {
+    const migrationBox = document.getElementById('sync-migration-box');
+    try {
+        const taskCount = await window.TaskDB._transaction('tasks', 'readonly', store => store.count());
+        const catCount = await window.TaskDB._transaction('categories', 'readonly', store => store.count());
+        const attCount = await window.TaskDB._transaction('attachments', 'readonly', store => store.count());
+        
+        // Show migration card if there are tasks, attachments, or custom categories
+        if (taskCount > 0 || attCount > 0 || catCount > DEFAULT_CATEGORIES.length) {
+            migrationBox.classList.remove('hidden');
+        } else {
+            migrationBox.classList.add('hidden');
+        }
+    } catch (e) {
+        console.error("Error checking local data for migration", e);
+        migrationBox.classList.add('hidden');
+    }
+}
+
+// Setup Firebase settings forms and event listeners
+function setupSyncSettings() {
+    const configJsonInput = document.getElementById('sync-config-json');
+    const saveBtn = document.getElementById('btn-save-sync');
+    const disconnectBtn = document.getElementById('btn-disconnect-sync');
+    const migrateBtn = document.getElementById('btn-migrate-data');
+    const prefixInput = document.getElementById('sync-prefix');
+
+    // Auto-parse Firebase Config JSON if pasted
+    configJsonInput.addEventListener('input', (e) => {
+        const value = e.target.value;
+        if (!value.trim()) return;
+
+        try {
+            // Find JSON-like structure within paste
+            let jsonString = value;
+            const openBrace = value.indexOf('{');
+            const closeBrace = value.lastIndexOf('}');
+            
+            if (openBrace !== -1 && closeBrace !== -1) {
+                jsonString = value.substring(openBrace, closeBrace + 1);
+            }
+
+            // Clean up standard JS object notation to make it valid JSON
+            let cleaned = jsonString
+                .replace(/([a-zA-Z0-9_]+)\s*:/g, '"$1":') // keys
+                .replace(/'([^']*)'/g, '"$1"') // values in single quotes
+                .replace(/,\s*([}\]])/g, '$1'); // trailing commas
+
+            const config = JSON.parse(cleaned);
+            
+            if (config.apiKey && config.projectId) {
+                document.getElementById('sync-apiKey').value = config.apiKey || '';
+                document.getElementById('sync-authDomain').value = config.authDomain || '';
+                document.getElementById('sync-projectId').value = config.projectId || '';
+                document.getElementById('sync-storageBucket').value = config.storageBucket || '';
+                document.getElementById('sync-messagingSenderId').value = config.messagingSenderId || '';
+                document.getElementById('sync-appId').value = config.appId || '';
+                
+                // Show success feedback
+                configJsonInput.style.borderColor = 'var(--status-done)';
+                setTimeout(() => {
+                    configJsonInput.style.borderColor = 'var(--glass-border)';
+                }, 2000);
+            }
+        } catch (err) {
+            console.warn("Failed to auto-parse config JSON", err);
+        }
+    });
+
+    // Save Sync Connection
+    saveBtn.addEventListener('click', async () => {
+        const apiKey = document.getElementById('sync-apiKey').value.trim();
+        const authDomain = document.getElementById('sync-authDomain').value.trim();
+        const projectId = document.getElementById('sync-projectId').value.trim();
+        const storageBucket = document.getElementById('sync-storageBucket').value.trim();
+        const messagingSenderId = document.getElementById('sync-messagingSenderId').value.trim();
+        const appId = document.getElementById('sync-appId').value.trim();
+        const prefix = prefixInput.value.trim() || 'finance_';
+
+        if (!apiKey || !projectId) {
+            alert("กรุณากรอกข้อมูล apiKey และ projectId เป็นอย่างน้อย");
+            return;
+        }
+
+        const config = {
+            apiKey,
+            authDomain,
+            projectId,
+            storageBucket,
+            messagingSenderId,
+            appId
+        };
+
+        // Show loading state
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<span>กำลังเชื่อมต่อ...</span>';
+
+        try {
+            // Save config to localStorage temporarily
+            localStorage.setItem('finance_checklist_firebase_config', JSON.stringify(config));
+            localStorage.setItem('finance_checklist_firebase_prefix', prefix);
+
+            // Re-initialize database
+            const initMode = await window.TaskDB.init();
+
+            if (initMode === 'firebase') {
+                alert("เชื่อมต่อ Google Firebase Cloud สำเร็จแล้ว! 🎉");
+                // Reload state with new database
+                await loadCategories();
+                await loadTasks();
+                updateDbModeUI();
+                renderSyncSettings();
+            } else {
+                throw new Error("เชื่อมต่อไม่สำเร็จ");
+            }
+        } catch (e) {
+            console.error("Firebase connection error:", e);
+            alert("ไม่สามารถเชื่อมต่อ Firebase ได้ กรุณาตรวจสอบข้อมูลคีย์หรือสิทธิ์การเข้าถึงอีกครั้ง (ฐานข้อมูลถูกสลับกลับไปใช้งานในเครื่องตามเดิม)");
+            // Clean up invalid keys
+            localStorage.removeItem('finance_checklist_firebase_config');
+            window.TaskDB.mode = 'local';
+            await window.TaskDB.init();
+            updateDbModeUI();
+            renderSyncSettings();
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i data-lucide="save"></i><span>บันทึกและเชื่อมต่อ Cloud</span>';
+            lucide.createIcons();
+        }
+    });
+
+    // Disconnect Sync Connection
+    disconnectBtn.addEventListener('click', async () => {
+        if (!confirm("คุณต้องการตัดการเชื่อมต่อกับ Cloud และสลับกลับไปใช้งานเฉพาะข้อมูลในเครื่องคอมพิวเตอร์นี้ใช่หรือไม่?")) {
+            return;
+        }
+
+        localStorage.removeItem('finance_checklist_firebase_config');
+        window.TaskDB.mode = 'local';
+        await window.TaskDB.init();
+
+        alert("ตัดการเชื่อมต่อคลาวด์แล้ว ระบบถูกสลับกลับไปใช้งานข้อมูลในเครื่อง IndexedDB ตามเดิม");
+        
+        await loadCategories();
+        await loadTasks();
+        updateDbModeUI();
+        renderSyncSettings();
+    });
+
+    // Migrate Local Data to Cloud
+    migrateBtn.addEventListener('click', async () => {
+        if (!confirm("คำเตือน: คุณแน่ใจหรือไม่ว่าต้องการนำส่งข้อมูลงานทั้งหมดที่เก็บอยู่ในคอมพิวเตอร์เครื่องนี้ ขึ้นไปรวมไว้บนระบบ Firebase Cloud? การซิงค์นี้อาจใช้เวลาครู่หนึ่งในกรณีที่คุณมีรูปภาพหรือเอกสารแนบหลายไฟล์")) {
+            return;
+        }
+
+        const progressContainer = document.getElementById('migration-progress-container');
+        const progressBar = document.getElementById('migration-progress-bar');
+        const progressText = document.getElementById('migration-progress-text');
+
+        migrateBtn.disabled = true;
+        progressContainer.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = 'กำลังเริ่มซิงค์...';
+
+        try {
+            await window.TaskDB.migrateLocalToCloud((percent, message) => {
+                progressBar.style.width = `${percent}%`;
+                progressText.textContent = `${message} (${percent}%)`;
+            });
+
+            // Reload data after migration
+            await loadCategories();
+            await loadTasks();
+            
+            // Reload views
+            renderSyncSettings();
+            
+            alert("ระบบนำส่งและย้ายข้อมูลขึ้น Cloud เรียบร้อยสมบูรณ์แล้ว! 🚀");
+            
+            // Auto hide progress bar after 3 seconds
+            setTimeout(() => {
+                progressContainer.classList.add('hidden');
+                migrateBtn.disabled = false;
+            }, 3000);
+
+        } catch (e) {
+            console.error("Migration failed:", e);
+            alert("เกิดข้อผิดพลาดระหว่างซิงค์ข้อมูล: " + e.message);
+            migrateBtn.disabled = false;
+            progressContainer.classList.add('hidden');
+        }
+    });
 }

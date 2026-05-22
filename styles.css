@@ -1402,3 +1402,243 @@ main.main-content {
         width: 100%;
     }
 }
+
+/* ----------------------------------------------------
+   10. CLOUD SYNC SETTINGS VIEW (FIREBASE)
+   ---------------------------------------------------- */
+.sync-settings-container {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 0;
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.sync-form-section {
+    padding: 2.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.sync-info-section {
+    padding: 2.5rem;
+    background: rgba(244, 242, 235, 0.4);
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.sync-intro-text {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.divider-text {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin: 0.5rem 0;
+}
+
+.divider-text::before,
+.divider-text::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px dashed var(--glass-border);
+}
+
+.divider-text:not(:empty)::before {
+    margin-right: .75em;
+}
+
+.divider-text:not(:empty)::after {
+    margin-left: .75em;
+}
+
+.sync-inputs-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 1rem;
+}
+
+.sync-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.sync-status-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--glass-border);
+    transition: var(--transition-smooth);
+}
+
+.sync-status-card.status-offline {
+    background: rgba(181, 137, 112, 0.05);
+    border-color: rgba(181, 137, 112, 0.2);
+}
+
+.sync-status-card.status-online {
+    background: rgba(115, 124, 104, 0.08);
+    border-color: rgba(115, 124, 104, 0.3);
+}
+
+.status-indicator-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 3px;
+    position: relative;
+}
+
+.status-offline .status-indicator-dot {
+    background: var(--accent-earth);
+    box-shadow: 0 0 8px var(--accent-earth);
+}
+
+.status-online .status-indicator-dot {
+    background: var(--status-done);
+    box-shadow: 0 0 8px var(--status-done);
+    animation: pulseGlow 2s infinite;
+}
+
+@keyframes pulseGlow {
+    0% { transform: scale(0.95); opacity: 0.7; }
+    50% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+.status-card-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.status-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.status-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.sync-migration-box {
+    background: #ffffff;
+    border: 1px solid var(--glass-border);
+    padding: 1.25rem;
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.sync-migration-box h5 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.sync-migration-box p {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+    margin: 0;
+}
+
+.btn-full {
+    width: 100%;
+    justify-content: center;
+}
+
+.migration-progress-bar-container {
+    position: relative;
+    height: 20px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--glass-border);
+    margin-top: 0.5rem;
+}
+
+.migration-progress-bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    background: var(--status-done);
+    transition: width 0.3s ease;
+}
+
+.migration-progress-text {
+    position: relative;
+    z-index: 2;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.sync-tutorial-guide {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.sync-tutorial-guide h5 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.sync-tutorial-guide ol {
+    margin: 0;
+    padding-left: 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.sync-tutorial-guide li {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.sync-tutorial-guide li ul {
+    margin-top: 0.25rem;
+    padding-left: 1rem;
+    list-style-type: circle;
+}
+
+.sync-tutorial-guide li li {
+    font-size: 0.78rem;
+}
+
+@media (max-width: 900px) {
+    .sync-settings-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .sync-info-section {
+        border-left: none !important;
+        border-top: 1px solid var(--glass-border);
+    }
+}

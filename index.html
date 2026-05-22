@@ -60,12 +60,18 @@
                         <span>จัดการหมวดหมู่</span>
                     </button>
                 </li>
+                <li class="menu-item" id="menu-sync-li">
+                    <button id="btn-nav-sync">
+                        <i data-lucide="cloud-lightning"></i>
+                        <span>เชื่อมต่อ Cloud (Firebase)</span>
+                    </button>
+                </li>
             </ul>
             
             <div class="sidebar-footer">
                 <div>พัฒนาโดย <span>Antigravity</span></div>
-                <div>ระบบเก็บข้อมูล: <span>ความปลอดภัยสูงสุด</span></div>
-                <div style="font-size: 0.7rem; margin-top: 0.5rem; opacity: 0.5;">Local Storage & IndexedDB</div>
+                <div>ระบบเก็บข้อมูล: <span id="sidebar-db-mode" class="status-badge-inline" style="background: rgba(181, 137, 112, 0.1); color: var(--accent-earth); padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 600; font-size: 0.75rem;">Local DB</span></div>
+                <div style="font-size: 0.7rem; margin-top: 0.5rem; opacity: 0.5;" id="sidebar-db-desc">Local Storage & IndexedDB</div>
             </div>
         </aside>
 
@@ -277,6 +283,131 @@
                 </div>
             </section>
 
+            <!-- ====================================================
+                 VIEW 4: CLOUD SYNC SETTINGS (FIREBASE)
+                 ==================================================== -->
+            <section id="view-sync" class="fade-in hidden">
+                <div class="glass-card sync-settings-container">
+                    
+                    <!-- Form Section -->
+                    <div class="sync-form-section">
+                        <div class="chart-title" style="margin-bottom: 1rem;">
+                            <i data-lucide="cloud-lightning" style="color: var(--accent-earth);"></i>
+                            <span>ตั้งค่าการเชื่อมต่อคลาวด์ (Firebase Config)</span>
+                        </div>
+                        
+                        <p class="sync-intro-text">
+                            ตั้งค่าการเชื่อมต่อเพื่อจัดเก็บและแชร์ข้อมูลงานกับทุกคนในทีมแบบเรียลไทม์ผ่าน Google Firebase ฟรี!
+                        </p>
+
+                        <!-- Config inputs -->
+                        <div class="form-group">
+                            <label for="sync-config-json">วางชุดโค้ด Firebase Config (แนะนำ - วางแล้วระบบจะเติมช่องด้านล่างให้อัตโนมัติ)</label>
+                            <textarea class="form-control" id="sync-config-json" rows="4" placeholder='วางโค้ด firebaseConfig ที่คัดลอกมาจาก Firebase Console เช่น:
+const firebaseConfig = {
+  apiKey: "AIzaSy...",
+  authDomain: "...",
+  ...
+};'></textarea>
+                        </div>
+
+                        <div class="divider-text"><span>หรือกรอกทีละช่อง</span></div>
+
+                        <div class="sync-inputs-grid">
+                            <div class="form-group">
+                                <label for="sync-apiKey">apiKey</label>
+                                <input type="text" class="form-control" id="sync-apiKey" placeholder="AIzaSy...">
+                            </div>
+                            <div class="form-group">
+                                <label for="sync-authDomain">authDomain</label>
+                                <input type="text" class="form-control" id="sync-authDomain" placeholder="xxx.firebaseapp.com">
+                            </div>
+                            <div class="form-group">
+                                <label for="sync-projectId">projectId</label>
+                                <input type="text" class="form-control" id="sync-projectId" placeholder="xxx">
+                            </div>
+                            <div class="form-group">
+                                <label for="sync-storageBucket">storageBucket</label>
+                                <input type="text" class="form-control" id="sync-storageBucket" placeholder="xxx.appspot.com">
+                            </div>
+                            <div class="form-group">
+                                <label for="sync-messagingSenderId">messagingSenderId</label>
+                                <input type="text" class="form-control" id="sync-messagingSenderId" placeholder="123456789">
+                            </div>
+                            <div class="form-group">
+                                <label for="sync-appId">appId</label>
+                                <input type="text" class="form-control" id="sync-appId" placeholder="1:12345:web:abcd...">
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label for="sync-prefix">คำนำหน้าชื่อตาราง/คอลเลกชัน (Collection Prefix - ป้องกันการชนกันของข้อมูล)</label>
+                            <input type="text" class="form-control" id="sync-prefix" placeholder="ตัวอย่างเช่น finance_" value="finance_">
+                        </div>
+
+                        <div class="sync-actions">
+                            <button class="btn-primary" id="btn-save-sync">
+                                <i data-lucide="save"></i>
+                                <span>บันทึกและเชื่อมต่อ Cloud</span>
+                            </button>
+                            <button class="btn-secondary hidden" id="btn-disconnect-sync">
+                                <i data-lucide="cloud-off"></i>
+                                <span>ตัดการเชื่อมต่อ Cloud</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Sidebar Info Section -->
+                    <div class="sync-info-section" style="border-left: 1px solid var(--glass-border);">
+                        <div class="chart-title" style="margin-bottom: 1rem;">
+                            <i data-lucide="help-circle" style="color: var(--accent-indigo);"></i>
+                            <span>คู่มือการใช้งานและสถานะ</span>
+                        </div>
+
+                        <!-- Live Status Card -->
+                        <div class="sync-status-card status-offline" id="sync-status-card">
+                            <div class="status-indicator-dot"></div>
+                            <div class="status-card-details">
+                                <div class="status-title" id="sync-status-title">สถานะ: โหมดใช้งานในเครื่อง (Offline Mode)</div>
+                                <div class="status-desc" id="sync-status-desc">ข้อมูลทั้งหมดจะถูกเซฟไว้อย่างปลอดภัยในหน่วยความจำบราวเซอร์บนคอมพิวเตอร์เครื่องนี้เท่านั้น ไม่สามารถเปิดดูจากเครื่องอื่นได้</div>
+                            </div>
+                        </div>
+
+                        <!-- Data Migration Box -->
+                        <div class="sync-migration-box hidden" id="sync-migration-box">
+                            <h5>อพยพข้อมูลเก่าขึ้นคลาวด์ (Data Migration) 🚀</h5>
+                            <p>ตรวจพบว่าคุณมีข้อมูลที่เคยจัดเก็บไว้ในคอมพิวเตอร์เครื่องนี้ ต้องการอัปโหลดขึ้นไปยัง Firebase Cloud ของทีมเพื่อไม่ให้ข้อมูลสูญหายหรือไม่?</p>
+                            <button class="btn-primary btn-full" id="btn-migrate-data">
+                                <i data-lucide="upload-cloud"></i>
+                                <span>เริ่มซิงค์ข้อมูลจากเครื่องขึ้น Cloud</span>
+                            </button>
+                            <div class="migration-progress-bar-container hidden" id="migration-progress-container">
+                                <div class="migration-progress-bar" id="migration-progress-bar" style="width: 0%;"></div>
+                                <span class="migration-progress-text" id="migration-progress-text">กำลังอัปโหลด 0%</span>
+                            </div>
+                        </div>
+
+                        <!-- Tutorial Guide -->
+                        <div class="sync-tutorial-guide">
+                            <h5>🛠️ วิธีสร้าง Firebase Project ฟรีใน 3 นาที</h5>
+                            <ol>
+                                <li>เปิดหน้าเว็บ <a href="https://console.firebase.google.com/" target="_blank" style="color: var(--accent-earth); font-weight: 600; text-decoration: underline;">Firebase Console</a> และล็อกอินด้วยบัญชี Gmail</li>
+                                <li>คลิกปุ่ม **Add project** ตั้งชื่อโครงการ (เช่น *Finance-Tracker*) แล้วดำเนินการต่อจนเสร็จสิ้น</li>
+                                <li>ในหน้าแรกของโครงการ คลิกไอคอน **Web (</>)** เพื่อสร้างเว็บแอป ตั้งชื่อแอปแล้วกด **Register app**</li>
+                                <li>คุณจะได้รับหน้าต่างโค้ดที่มีชุดข้อความ `const firebaseConfig = { ... }` ให้คัดลอกชุดโค้ดนั้นทั้งหมดมาวางในช่องซ้ายมือ แล้วกดปุ่มบันทึก!</li>
+                                <li>**สำคัญมาก:** ไปที่แถบเมนูด้านซ้ายในหน้าเว็บ Firebase Console:
+                                    <ul>
+                                        <li>เปิดบริการ **Firestore Database** -> คลิก **Create database** -> เลือกโซนเอเชีย (เช่น `asia-southeast1`) -> กดเริ่มใน **Test Mode** (โหมดทดสอบ เพื่อให้บราวเซอร์เข้าเขียน/อ่านข้อมูลได้ทันที)</li>
+                                        <li>เปิดบริการ **Storage** -> คลิก **Get started** -> กดดำเนินต่อไปและเลือก **Test Mode** เพื่อให้แนบไฟล์ได้</li>
+                                    </ul>
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
         </main>
     </div>
 
@@ -435,6 +566,11 @@
     <!-- ====================================================
          DATABASE MODULE & APP SCRIPTS
          ==================================================== -->
+    <!-- Firebase Compat SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
     <script src="db.js"></script>
     <script src="app.js"></script>
     
