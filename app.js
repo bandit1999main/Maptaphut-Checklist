@@ -1355,28 +1355,35 @@ function renderSyncSettings() {
     const statusTitle = document.getElementById('sync-status-title');
     const statusDesc = document.getElementById('sync-status-desc');
 
-    // Populate current values from localStorage
+    // Populate current values from localStorage or active Firebase config
     const savedConfigStr = localStorage.getItem('finance_checklist_firebase_config');
+    const isLocalOverride = localStorage.getItem('finance_checklist_local_override') === 'true';
     const savedPrefix = localStorage.getItem('finance_checklist_firebase_prefix') || 'finance_';
     
     prefixInput.value = savedPrefix;
     configJsonInput.value = '';
 
+    let config = null;
     if (savedConfigStr) {
         try {
-            const config = JSON.parse(savedConfigStr);
-            apiKeyInput.value = config.apiKey || '';
-            authDomainInput.value = config.authDomain || '';
-            projectIdInput.value = config.projectId || '';
-            storageBucketInput.value = config.storageBucket || '';
-            messagingSenderIdInput.value = config.messagingSenderId || '';
-            appIdInput.value = config.appId || '';
-            
-            // Set dynamic button visibility
-            disconnectBtn.classList.remove('hidden');
+            config = JSON.parse(savedConfigStr);
         } catch (e) {
             console.error(e);
         }
+    } else if (!isLocalOverride && window.TaskDB.mode === 'firebase' && window.TaskDB.firebaseApp) {
+        config = window.TaskDB.firebaseApp.options;
+    }
+
+    if (config) {
+        apiKeyInput.value = config.apiKey || '';
+        authDomainInput.value = config.authDomain || '';
+        projectIdInput.value = config.projectId || '';
+        storageBucketInput.value = config.storageBucket || '';
+        messagingSenderIdInput.value = config.messagingSenderId || '';
+        appIdInput.value = config.appId || '';
+        
+        // Set dynamic button visibility
+        disconnectBtn.classList.remove('hidden');
     } else {
         apiKeyInput.value = '';
         authDomainInput.value = '';
@@ -1505,6 +1512,7 @@ function setupSyncSettings() {
             // Save config to localStorage temporarily
             localStorage.setItem('finance_checklist_firebase_config', JSON.stringify(config));
             localStorage.setItem('finance_checklist_firebase_prefix', prefix);
+            localStorage.removeItem('finance_checklist_local_override'); // Clear local override
 
             // Re-initialize database
             const initMode = await window.TaskDB.init();
@@ -1542,6 +1550,7 @@ function setupSyncSettings() {
         }
 
         localStorage.removeItem('finance_checklist_firebase_config');
+        localStorage.setItem('finance_checklist_local_override', 'true'); // Persist local override
         window.TaskDB.mode = 'local';
         await window.TaskDB.init();
 

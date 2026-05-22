@@ -7,6 +7,17 @@
 const DB_NAME = 'TaskTrackerDB';
 const DB_VERSION = 1;
 
+// Default Firebase Configuration (pre-configured for instant team sync)
+const DEFAULT_FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDG8nBp0Bq8pVFpAL-yCT5E7KorZHG-_dw",
+    authDomain: "maptaphut-checklist.firebaseapp.com",
+    projectId: "maptaphut-checklist",
+    storageBucket: "maptaphut-checklist.firebasestorage.app",
+    messagingSenderId: "592356498045",
+    appId: "1:592356498045:web:958aad90005db36073ef14",
+    measurementId: "G-2WXL9GVTY9"
+};
+
 window.TaskDB = {
     db: null,           // IndexedDB database reference
     mode: 'local',      // Current storage mode: 'local' | 'firebase'
@@ -23,10 +34,22 @@ window.TaskDB = {
         return new Promise((resolve, reject) => {
             // Check if Firebase config is saved in localStorage
             const savedConfigStr = localStorage.getItem('finance_checklist_firebase_config');
+            const isLocalOverride = localStorage.getItem('finance_checklist_local_override') === 'true';
             
+            let config = null;
             if (savedConfigStr) {
                 try {
-                    const config = JSON.parse(savedConfigStr);
+                    config = JSON.parse(savedConfigStr);
+                } catch (e) {
+                    console.error("Failed to parse Firebase config:", e);
+                }
+            } else if (!isLocalOverride) {
+                // If there's no saved config and no local override, use the default config
+                config = DEFAULT_FIREBASE_CONFIG;
+            }
+            
+            if (config) {
+                try {
                     this.prefix = localStorage.getItem('finance_checklist_firebase_prefix') || 'finance_';
 
                     // Check if Firebase Compat SDK is loaded
@@ -41,13 +64,13 @@ window.TaskDB = {
                         this.storage = firebase.storage();
                         this.mode = 'firebase';
                         
-                        console.log("Firebase mode active. Connected with prefix: " + this.prefix);
+                        console.log("Firebase active (Mode: " + (savedConfigStr ? "Custom" : "Default") + "). Prefix: " + this.prefix);
                         return resolve(this.mode);
                     } else {
                         console.warn("Firebase SDK not loaded, falling back to IndexedDB local-first mode.");
                     }
                 } catch (e) {
-                    console.error("Failed to parse Firebase config, falling back to IndexedDB:", e);
+                    console.error("Failed to initialize Firebase, falling back to IndexedDB:", e);
                 }
             }
 
