@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบตรวจตามงานการเงิน | Financial Task Tracker</title>
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="ระบบติดตามงานการเงินและบัญชี ตรวจสถานะงานแบบเรียลไทม์ พร้อมแดชบอร์ดอัจฉริยะ ระบบแจ้งเตือน และระบบแนบไฟล์ส่วนตัวที่ปลอดภัยในเครื่องของคุณ">
+    <meta name="keywords" content="ติดตามงาน, บัญชีประจำวัน, บสค.60, ใบแจ้งหนี้, บัญชีประจำเดือน, ภาษีหัก ณ ที่จ่าย, ส่วนการเงิน, ตรวจงาน">
+    <meta name="author" content="Antigravity AI">
+    
+    <!-- Google Fonts (Mitr for Thai, Inter for English/Numbers) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Mitr:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- CSS Design System -->
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Lucide Icons (Minimalistic Modern Icons) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+    <!-- Ambient Glowing Spheres (Premium Space Background Effect) -->
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="ambient-glow glow-3"></div>
+
+    <div class="app-container">
+        
+        <!-- ====================================================
+             SIDEBAR NAVIGATION
+             ==================================================== -->
+        <aside class="sidebar">
+            <div class="sidebar-logo">
+                <div class="logo-icon">
+                    <i data-lucide="activity" style="color: white; width: 22px; height: 22px;"></i>
+                </div>
+                <div class="logo-text">FinanceTracker</div>
+            </div>
+            
+            <ul class="sidebar-menu">
+                <li class="menu-item active" id="menu-dashboard-li">
+                    <button id="btn-nav-dashboard">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>ภาพรวม (Dashboard)</span>
+                    </button>
+                </li>
+                <li class="menu-item" id="menu-tasks-li">
+                    <button id="btn-nav-tasks">
+                        <i data-lucide="check-square"></i>
+                        <span>รายการงานทั้งหมด</span>
+                    </button>
+                </li>
+                <li class="menu-item" id="menu-categories-li">
+                    <button id="btn-nav-categories">
+                        <i data-lucide="folder-kanban"></i>
+                        <span>จัดการหมวดหมู่</span>
+                    </button>
+                </li>
+            </ul>
+            
+            <div class="sidebar-footer">
+                <div>พัฒนาโดย <span>Antigravity</span></div>
+                <div>ระบบเก็บข้อมูล: <span>ความปลอดภัยสูงสุด</span></div>
+                <div style="font-size: 0.7rem; margin-top: 0.5rem; opacity: 0.5;">Local Storage & IndexedDB</div>
+            </div>
+        </aside>
+
+        <!-- ====================================================
+             MAIN WORKSPACE AREA
+             ==================================================== -->
+        <main class="main-content">
+            
+            <!-- Dynamic Page Header -->
+            <header class="page-header">
+                <div class="header-title">
+                    <h1 id="page-title-text">ภาพรวมของงาน (Dashboard)</h1>
+                    <p id="page-subtitle-text">วิเคราะห์สถานะงานการเงิน ดำเนินการ และสถิติต่างๆ ในปัจจุบัน</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-primary" id="btn-create-task-main">
+                        <i data-lucide="plus-circle"></i>
+                        <span>เพิ่มงานใหม่</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- ====================================================
+                 VIEW 1: DASHBOARD
+                 ==================================================== -->
+            <section id="view-dashboard" class="fade-in">
+                <!-- Summary Statistics Grid -->
+                <div class="dashboard-grid">
+                    
+                    <!-- Total Tasks Card -->
+                    <div class="glass-card metric-card" style="--card-border-color: var(--primary-grad); --icon-color: var(--accent-indigo);">
+                        <div class="metric-header">
+                            <span>งานทั้งหมด</span>
+                            <div class="metric-icon-box"><i data-lucide="clipboard-list"></i></div>
+                        </div>
+                        <div class="metric-value" id="stat-total-tasks">0</div>
+                        <div class="metric-desc">จำนวนงานทั้งหมดในระบบ</div>
+                    </div>
+
+                    <!-- In Progress Card -->
+                    <div class="glass-card metric-card" style="--card-border-color: var(--status-prog); --icon-color: var(--status-prog);">
+                        <div class="metric-header">
+                            <span>กำลังทำ</span>
+                            <div class="metric-icon-box"><i data-lucide="refresh-cw"></i></div>
+                        </div>
+                        <div class="metric-value" id="stat-pending-tasks" style="color: var(--status-prog);">0</div>
+                        <div class="metric-desc">งานที่กำลังอยู่ระหว่างการจัดการ</div>
+                    </div>
+
+                    <!-- Completed Card -->
+                    <div class="glass-card metric-card" style="--card-border-color: var(--status-done); --icon-color: var(--status-done);">
+                        <div class="metric-header">
+                            <span>เสร็จแล้ว</span>
+                            <div class="metric-icon-box"><i data-lucide="check-circle-2"></i></div>
+                        </div>
+                        <div class="metric-value" id="stat-completed-tasks" style="color: var(--status-done);">0</div>
+                        <div class="metric-desc">งานที่บรรลุเป้าหมายเรียบร้อย</div>
+                    </div>
+
+                    <!-- Overdue Card -->
+                    <div class="glass-card metric-card" style="--card-border-color: var(--status-canc); --icon-color: var(--status-canc);">
+                        <div class="metric-header">
+                            <span>เกินกำหนดส่ง</span>
+                            <div class="metric-icon-box"><i data-lucide="alert-triangle"></i></div>
+                        </div>
+                        <div class="metric-value" id="stat-overdue-tasks" style="color: var(--status-canc);">0</div>
+                        <div class="metric-desc">งานเลยวันกำหนดส่งงานจริง</div>
+                    </div>
+
+                </div>
+
+                <!-- Deep Visualization Panels (Pie Chart & Workload breakdown) -->
+                <div class="dashboard-details">
+                    
+                    <!-- Status Distribution Interactive SVG Chart -->
+                    <div class="glass-card chart-section">
+                        <div class="chart-title">
+                            <i data-lucide="pie-chart" style="color: var(--accent-indigo);"></i>
+                            <span>สัดส่วนสถานะงานตามกลุ่ม</span>
+                        </div>
+                        <div class="charts-wrapper">
+                            <div class="donut-chart-container">
+                                <svg class="donut-svg" width="200" height="200" viewBox="0 0 200 200" id="status-donut-svg">
+                                    <!-- Dynamic segments will be inserted here by JavaScript -->
+                                </svg>
+                                <div class="donut-center">
+                                    <div class="donut-center-num" id="donut-total-count">0</div>
+                                    <div class="donut-center-lbl">งานทั้งหมด</div>
+                                </div>
+                            </div>
+                            <div class="chart-legend" id="status-chart-legend">
+                                <!-- Dynamic legends will be inserted here by JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Workload Breakdown By Category -->
+                    <div class="glass-card workload-section">
+                        <div class="chart-title">
+                            <i data-lucide="bar-chart-3" style="color: var(--accent-blue);"></i>
+                            <span>ภาระงานแบ่งตามหมวดหมู่ (Category Workload)</span>
+                        </div>
+                        <div class="workload-list" id="workload-breakdown-list">
+                            <!-- Dynamic category progress bars will be inserted here -->
+                        </div>
+                    </div>
+
+                    <!-- Urgent Due Date Alerts -->
+                    <div class="glass-card alert-section">
+                        <div class="chart-title" style="margin-bottom: 0.5rem;">
+                            <i data-lucide="bell" style="color: var(--warning-orange);"></i>
+                            <span>ระบบแจ้งเตือนภารกิจเร่งด่วน (Urgent & Overdue Alerts)</span>
+                        </div>
+                        <div class="alert-list" id="alert-notifications-list">
+                            <!-- Dynamic alert cards will be loaded here -->
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- ====================================================
+                 VIEW 2: TASK LIST & FILTERS
+                 ==================================================== -->
+            <section id="view-tasks" class="fade-in hidden">
+                <!-- Advanced Filtering and Search Bar -->
+                <div class="filter-bar">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="filter-search-input" placeholder="ค้นหาชื่องาน รายละเอียด...">
+                    </div>
+                    
+                    <select class="select-filter" id="filter-status-select">
+                        <option value="all">ทุกสถานะงาน</option>
+                        <option value="รับงาน">รับงาน (Accepted)</option>
+                        <option value="กำลังทำ">กำลังทำ (In Progress)</option>
+                        <option value="เสร็จแล้ว">เสร็จแล้ว (Completed)</option>
+                        <option value="ยกเลิก">ยกเลิก (Cancelled)</option>
+                    </select>
+
+                    <select class="select-filter" id="filter-category-select">
+                        <option value="all">ทุกหมวดหมู่</option>
+                        <!-- Custom categories will be populated here -->
+                    </select>
+
+                    <select class="select-filter" id="filter-sort-select">
+                        <option value="due-asc">กำหนดส่ง: ใกล้สุดก่อน (น้อยไปมาก)</option>
+                        <option value="due-desc">กำหนดส่ง: ไกลสุดก่อน (มากไปน้อย)</option>
+                        <option value="title-asc">เรียงตามชื่อ: ก-ฮ</option>
+                        <option value="created-desc">ลงระบบล่าสุด: ก่อนไปหลัง</option>
+                    </select>
+                </div>
+
+                <!-- Grid of Task Cards -->
+                <div class="tasks-grid" id="tasks-cards-container">
+                    <!-- Dynamic task cards loaded via JS -->
+                </div>
+            </section>
+
+            <!-- ====================================================
+                 VIEW 3: CATEGORY MANAGER
+                 ==================================================== -->
+            <section id="view-categories" class="fade-in hidden">
+                <div class="glass-card category-manager-grid">
+                    
+                    <!-- Section to Add / Create custom category -->
+                    <div class="category-form-section">
+                        <div class="chart-title" style="margin-bottom: 1.5rem;">
+                            <i data-lucide="folder-plus" style="color: var(--accent-indigo);"></i>
+                            <span id="cat-form-title">สร้างหมวดหมู่ใหม่</span>
+                        </div>
+                        
+                        <input type="hidden" id="category-edit-id" value="">
+                        
+                        <div class="form-group">
+                            <label for="category-name-input">ชื่อหมวดหมู่งาน</label>
+                            <input type="text" class="form-control" id="category-name-input" placeholder="เช่น บัญชีรายรับ, ภาษีปี 69...">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>สีสัญลักษณ์ประจำหมวดหมู่</label>
+                            <div class="color-picker-grid" id="category-color-picker">
+                                <!-- Colors injected via JavaScript -->
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 0.75rem; margin-top: 2rem;">
+                            <button class="btn-primary" id="btn-save-category" style="flex-grow: 1;">
+                                <i data-lucide="save"></i>
+                                <span>บันทึกหมวดหมู่</span>
+                            </button>
+                            <button class="btn-secondary hidden" id="btn-cancel-category-edit">
+                                <span>ยกเลิก</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- List of current categories -->
+                    <div class="category-list-section" style="border-left: 1px solid var(--glass-border);">
+                        <div class="chart-title" style="margin-bottom: 1.5rem;">
+                            <i data-lucide="list" style="color: var(--accent-blue);"></i>
+                            <span>หมวดหมู่งานทั้งหมดในปัจจุบัน</span>
+                        </div>
+                        <div id="categories-rows-container" style="display: flex; flex-direction: column;">
+                            <!-- Injected rows of categories -->
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ====================================================
+         MODAL 1: ADD & EDIT TASK MODAL
+         ==================================================== -->
+    <div class="modal-overlay" id="task-modal-overlay">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2 id="task-modal-title">ลงบันทึกงานใหม่</h2>
+                <button class="icon-btn" id="btn-close-task-modal"><i data-lucide="x"></i></button>
+            </div>
+            
+            <form id="task-form" onsubmit="return false;">
+                <div class="modal-body">
+                    <input type="hidden" id="task-edit-id" value="">
+                    
+                    <!-- Task Title -->
+                    <div class="form-group">
+                        <label for="task-title-input">ชื่อหัวข้อภารกิจ <span style="color: var(--warning-red);">*</span></label>
+                        <input type="text" class="form-control" id="task-title-input" required placeholder="กรอกชื่อหัวข้องานเอกสาร หรือรายงานบัญชี...">
+                    </div>
+
+                    <!-- Category Select & Status -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label for="task-category-select">หมวดหมู่งาน <span style="color: var(--warning-red);">*</span></label>
+                            <select class="form-control" id="task-category-select" required>
+                                <!-- Categories populated via JS -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="task-status-select">สถานะปัจจุบัน <span style="color: var(--warning-red);">*</span></label>
+                            <select class="form-control" id="task-status-select" required>
+                                <option value="รับงาน">รับงาน (Accepted)</option>
+                                <option value="กำลังทำ">กำลังทำ (In Progress)</option>
+                                <option value="เสร็จแล้ว">เสร็จแล้ว (Completed)</option>
+                                <option value="ยกเลิก">ยกเลิก (Cancelled)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Due Date Picker & Time -->
+                    <div class="form-group">
+                        <label for="task-due-input">กำหนดส่งงาน (Due Date & Time) <span style="color: var(--warning-red);">*</span></label>
+                        <input type="datetime-local" class="form-control" id="task-due-input" required>
+                    </div>
+
+                    <!-- Task Description -->
+                    <div class="form-group">
+                        <label for="task-desc-input">คำอธิบาย/รายละเอียดงานเพิ่มเติม</label>
+                        <textarea class="form-control" id="task-desc-input" rows="3" placeholder="ระบุสิ่งที่ต้องทำ รายละเอียด หรือผู้ประสานงาน..."></textarea>
+                    </div>
+
+                    <!-- Drag and Drop File Uploader -->
+                    <div class="form-group">
+                        <label>เอกสารและไฟล์แนบประกอบ (เก็บบน IndexedDB ในคอมพิวเตอร์ของคุณ)</label>
+                        <div class="drag-drop-zone" id="task-drag-drop-zone">
+                            <i data-lucide="upload-cloud" class="drag-drop-icon"></i>
+                            <div style="font-weight: 600; font-size: 0.9rem;">ลากไฟล์มาวางตรงนี้ หรือคลิกเพื่ออัปโหลด</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">รองรับเอกสารบัญชี PDF, Word, Excel, รูปภาพขนาดใหญ่</div>
+                            <input type="file" id="task-file-input" class="file-input-hidden" multiple>
+                        </div>
+                        <!-- Current Files Container -->
+                        <div class="attachments-list" id="modal-attachments-list">
+                            <!-- Attachments populated here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" id="btn-cancel-task-modal">ยกเลิก</button>
+                    <button type="submit" class="btn-primary" id="btn-save-task">
+                        <i data-lucide="check"></i>
+                        <span>บันทึกงาน</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ====================================================
+         MODAL 2: DETAIL VIEW MODAL
+         ==================================================== -->
+    <div class="modal-overlay" id="detail-modal-overlay">
+        <div class="modal-container" style="max-width: 650px;">
+            <div class="modal-header">
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span class="category-tag" id="detail-category-tag">หมวดหมู่</span>
+                        <span class="status-badge" id="detail-status-badge">สถานะ</span>
+                    </div>
+                </div>
+                <button class="icon-btn" id="btn-close-detail-modal"><i data-lucide="x"></i></button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Task title with beautiful focus -->
+                <h2 id="detail-task-title" style="font-size: 1.6rem; font-weight: 700; margin-bottom: 1.5rem; color: var(--text-primary);">ชื่องานสำหรับแสดงรายละเอียด</h2>
+                
+                <!-- Due Date & Timestamps Details -->
+                <div class="detail-meta-grid">
+                    <div class="detail-meta-item">
+                        <span class="detail-meta-lbl">กำหนดส่ง (Due Date)</span>
+                        <span class="detail-meta-val" id="detail-due-value" style="color: var(--text-primary);">วันเวลาที่กำหนด</span>
+                    </div>
+                    <div class="detail-meta-item">
+                        <span class="detail-meta-lbl">เวลาที่เหลืออยู่ / สถานะความเร่งด่วน</span>
+                        <span class="detail-meta-val" id="detail-countdown-value" style="font-weight: 700;">คำนวณ...</span>
+                    </div>
+                    <div class="detail-meta-item">
+                        <span class="detail-meta-lbl">สร้างเมื่อ</span>
+                        <span class="detail-meta-val" id="detail-created-value" style="font-weight: normal; color: var(--text-secondary);">วันที่ลงระบบ</span>
+                    </div>
+                    <div class="detail-meta-item">
+                        <span class="detail-meta-lbl">แก้ไขล่าสุดเมื่อ</span>
+                        <span class="detail-meta-val" id="detail-updated-value" style="font-weight: normal; color: var(--text-secondary);">-</span>
+                    </div>
+                </div>
+
+                <!-- Detailed Description -->
+                <div class="detail-desc-box">
+                    <div class="detail-desc-title">รายละเอียดข้อมูลงาน</div>
+                    <div class="detail-desc-content" id="detail-desc-value">ไม่มีคำอธิบายเพิ่มเติมสำหรับงานชิ้นนี้</div>
+                </div>
+
+                <!-- Downloadable Attachments -->
+                <div>
+                    <div class="detail-desc-title" style="display: flex; align-items: center; gap: 0.4rem;">
+                        <i data-lucide="paperclip" style="width: 16px; height: 16px; color: var(--accent-indigo);"></i>
+                        <span>ไฟล์แนบและเอกสารชิ้นงาน (<span id="detail-attachment-count-text">0</span>)</span>
+                    </div>
+                    <div class="attachments-list" id="detail-attachments-container">
+                        <!-- Loaded attachments with download links -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                <button class="icon-btn delete-btn" id="btn-detail-delete" title="ลบงานนี้ออกถาวร" style="width: 38px; height: 38px; background: rgba(239, 68, 68, 0.05);">
+                    <i data-lucide="trash-2" style="width: 20px; height: 20px;"></i>
+                </button>
+                <div style="display: flex; gap: 1rem;">
+                    <button class="btn-secondary" id="btn-detail-edit">
+                        <i data-lucide="edit-3"></i>
+                        <span>แก้ไขข้อมูล</span>
+                    </button>
+                    <button class="btn-primary" id="btn-close-detail-footer">
+                        <span>ปิดหน้าต่าง</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ====================================================
+         DATABASE MODULE & APP SCRIPTS
+         ==================================================== -->
+    <script src="db.js"></script>
+    <script src="app.js"></script>
+    
+    <!-- Initialize Lucide Icons on launch -->
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
