@@ -2,6 +2,7 @@
  * db.js - Smart Dual-Storage Management for Task Tracker Webapp
  * This utility dynamically routes database calls to Google Firebase (Cloud Firestore & Storage)
  * when configured, with a seamless offline fallback to Local IndexedDB.
+ * Version 1.0.5 - Mobile Responsive Optimization - 2026-05-22
  */
 
 const DB_NAME = 'TaskTrackerDB';

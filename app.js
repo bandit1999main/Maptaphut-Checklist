@@ -2,6 +2,7 @@
  * app.js - Main Application Logic, State Controller & Dashboard Renderer
  * Implements full Task CRUD, Category Management, Drag & Drop attachments,
  * local alerts, and interactive SVG analytics.
+ * Version 1.0.5 - Mobile Responsive Optimization - 2026-05-22
  */
 
 // ====================================================
