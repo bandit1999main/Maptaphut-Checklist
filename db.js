@@ -61,7 +61,12 @@ window.TaskDB = {
                             this.firebaseApp = firebase.app();
                         }
                         this.firestore = firebase.firestore();
-                        this.storage = firebase.storage();
+                        try {
+                            this.storage = firebase.storage();
+                        } catch (storageErr) {
+                            console.warn("Storage not initialized or skipped:", storageErr);
+                            this.storage = null;
+                        }
                         this.mode = 'firebase';
                         
                         console.log("Firebase active (Mode: " + (savedConfigStr ? "Custom" : "Default") + "). Prefix: " + this.prefix);
@@ -333,21 +338,24 @@ window.TaskDB = {
      */
     saveAttachment(attachment) {
         if (this.mode === 'firebase') {
-            const storageRef = this.storage.ref();
-            const path = `attachments/${attachment.taskId}/${attachment.id}_${attachment.fileName}`;
-            const fileRef = storageRef.child(path);
+            // Helper to convert blob to base64
+            const blobToDataURL = (blob) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                });
+            };
 
-            return fileRef.put(attachment.blob).then(() => {
-                return fileRef.getDownloadURL();
-            }).then((downloadURL) => {
+            return blobToDataURL(attachment.blob).then((dataUrl) => {
                 const metadata = {
                     id: attachment.id,
                     taskId: attachment.taskId,
                     fileName: attachment.fileName,
                     fileSize: attachment.fileSize,
                     fileType: attachment.fileType,
-                    downloadURL: downloadURL,
-                    path: path,
+                    dataUrl: dataUrl, // Save directly as base64 in Firestore!
                     createdAt: new Date().toISOString()
                 };
                 return this.firestore.collection(`${this.prefix}attachments`).doc(attachment.id).set(metadata);
@@ -370,24 +378,46 @@ window.TaskDB = {
                 const data = doc.data();
                 if (!data) return null;
 
-                // Try fetching the blob from Firebase Cloud Storage downloadURL
-                return fetch(data.downloadURL)
-                    .then(res => res.blob())
-                    .then(blob => {
-                        return {
-                            ...data,
-                            blob: blob
-                        };
-                    })
-                    .catch(err => {
-                        console.warn("CORS block or fetch error, fallback to direct download URL reference:", err);
-                        // Return metadata with direct reference flag for client fallback
-                        return {
-                            ...data,
-                            blob: null,
-                            isDirectUrl: true
-                        };
-                    });
+                if (data.dataUrl) {
+                    // Convert Data URL back to Blob
+                    return fetch(data.dataUrl)
+                        .then(res => res.blob())
+                        .then(blob => {
+                            return {
+                                ...data,
+                                blob: blob
+                            };
+                        })
+                        .catch(err => {
+                            console.error("Error converting dataUrl to blob:", err);
+                            return {
+                                ...data,
+                                blob: null
+                            };
+                        });
+                } else if (data.downloadURL) {
+                    // Fallback to fetch from Storage downloadURL for backward compatibility
+                    return fetch(data.downloadURL)
+                        .then(res => res.blob())
+                        .then(blob => {
+                            return {
+                                ...data,
+                                blob: blob
+                            };
+                        })
+                        .catch(err => {
+                            console.warn("CORS block or fetch error, fallback to direct download URL reference:", err);
+                            return {
+                                ...data,
+                                blob: null,
+                                isDirectUrl: true
+                            };
+                        });
+                }
+                return {
+                    ...data,
+                    blob: null
+                };
             });
         }
 
@@ -403,22 +433,7 @@ window.TaskDB = {
      */
     deleteAttachment(attachmentId) {
         if (this.mode === 'firebase') {
-            return this.firestore.collection(`${this.prefix}attachments`).doc(attachmentId).get().then(doc => {
-                const data = doc.data();
-                if (!data) return true;
-
-                const promises = [];
-                if (data.path) {
-                    const storageRef = this.storage.ref();
-                    promises.push(
-                        storageRef.child(data.path).delete()
-                            .catch(e => console.error("Error deleting file from Firebase Storage:", e))
-                    );
-                }
-                promises.push(this.firestore.collection(`${this.prefix}attachments`).doc(attachmentId).delete());
-
-                return Promise.all(promises).then(() => true);
-            });
+            return this.firestore.collection(`${this.prefix}attachments`).doc(attachmentId).delete().then(() => true);
         }
 
         return this._transaction('attachments', 'readwrite', (store) => {
@@ -470,26 +485,28 @@ window.TaskDB = {
             await this.firestore.collection(`${this.prefix}tasks`).doc(task.id).set(task);
         }
 
-        // 3. Sync Attachments (Upload files & save Firestore metadata)
+        // Helper to convert blob to base64
+        const blobToDataURL = (blob) => {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            });
+        };
+
+        // 3. Sync Attachments (Save directly to Firestore as DataURL)
         for (const att of localAttachments) {
-            if (progressCallback) updateProgress(`กำลังอัปโหลดไฟล์แนบ: ${att.fileName}`);
+            if (progressCallback) updateProgress(`กำลังซิงค์ไฟล์แนบ: ${att.fileName}`);
             try {
-                const storageRef = this.storage.ref();
-                const path = `attachments/${att.taskId}/${att.id}_${att.fileName}`;
-                const fileRef = storageRef.child(path);
-
-                // Upload the stored blob
-                await fileRef.put(att.blob);
-                const downloadURL = await fileRef.getDownloadURL();
-
+                const dataUrl = await blobToDataURL(att.blob);
                 const metadata = {
                     id: att.id,
                     taskId: att.taskId,
                     fileName: att.fileName,
                     fileSize: att.fileSize,
                     fileType: att.fileType,
-                    downloadURL: downloadURL,
-                    path: path,
+                    dataUrl: dataUrl,
                     createdAt: new Date().toISOString()
                 };
 
