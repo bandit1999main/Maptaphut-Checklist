@@ -163,6 +163,7 @@ function setupNavigation() {
     const menuSyncLi = document.getElementById('menu-sync-li');
     
     const btnCreateTaskMain = document.getElementById('btn-create-task-main');
+    const btnCreateTaskFab = document.getElementById('btn-create-task-fab');
     
     navDashboard.addEventListener('click', () => switchView('dashboard'));
     navTasks.addEventListener('click', () => switchView('tasks'));
@@ -172,6 +173,12 @@ function setupNavigation() {
     btnCreateTaskMain.addEventListener('click', () => {
         openTaskModal();
     });
+    
+    if (btnCreateTaskFab) {
+        btnCreateTaskFab.addEventListener('click', () => {
+            openTaskModal();
+        });
+    }
     
     function switchView(viewName) {
         AppState.currentView = viewName;
@@ -187,6 +194,15 @@ function setupNavigation() {
         document.getElementById('view-tasks').classList.add('hidden');
         document.getElementById('view-categories').classList.add('hidden');
         document.getElementById('view-sync').classList.add('hidden');
+        
+        // Handle Mobile FAB visibility
+        if (btnCreateTaskFab) {
+            if (viewName === 'dashboard' || viewName === 'tasks') {
+                btnCreateTaskFab.classList.remove('hidden-fab');
+            } else {
+                btnCreateTaskFab.classList.add('hidden-fab');
+            }
+        }
         
         // Show active view & menu item
         if (viewName === 'dashboard') {

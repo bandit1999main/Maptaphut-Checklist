@@ -1286,6 +1286,15 @@ main.main-content {
     display: none !important;
 }
 
+/* Floating Action Button for Mobile Viewports (Default: Hidden on Desktop) */
+.mobile-fab {
+    display: none !important;
+}
+
+.hidden-fab {
+    display: none !important;
+}
+
 /* ----------------------------------------------------
    12. RESPONSIVE DESIGN MEDIA QUERIES
    ---------------------------------------------------- */
@@ -1344,18 +1353,58 @@ main.main-content {
 
 @media (max-width: 768px) {
     aside.sidebar {
-        flex-direction: column;
-        gap: 1rem;
-        align-items: stretch;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+        width: 100%;
+        height: auto;
+        padding: 0.5rem 1rem;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        border-right: none;
+        border-bottom: 1px solid var(--glass-border);
+        background: rgba(250, 249, 246, 0.92); /* Warm linen off-white with opacity */
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
     }
     
     .sidebar-logo {
-        justify-content: center;
+        display: none !important;
     }
     
     .sidebar-menu {
-        justify-content: center;
-        flex-wrap: wrap;
+        flex-direction: row !important;
+        overflow-x: auto;
+        white-space: nowrap;
+        scrollbar-width: none; /* Firefox */
+        gap: 0.35rem;
+        width: 100%;
+        justify-content: flex-start;
+        padding: 0.25rem 0;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .sidebar-menu::-webkit-scrollbar {
+        display: none !important;
+    }
+    
+    .menu-item {
+        flex-shrink: 0;
+    }
+    
+    .menu-item button {
+        padding: 0.5rem 0.85rem !important;
+        font-size: 0.8rem !important;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        border-radius: var(--radius-sm);
+        transform: none !important; /* Prevent slide out transition */
+    }
+    
+    .sidebar-footer {
+        display: none !important;
     }
     
     .charts-wrapper {
@@ -1371,6 +1420,48 @@ main.main-content {
     .category-manager-grid {
         grid-template-columns: 1fr;
     }
+    
+    .category-list-section {
+        border-left: none !important;
+        border-top: 1px solid var(--glass-border) !important;
+        padding-top: 2rem !important;
+        margin-top: 1.5rem !important;
+    }
+    
+    /* Show Floating Action Button (FAB) on Mobile */
+    .mobile-fab {
+        display: flex !important;
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--primary-grad);
+        color: white;
+        border: none;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 6px 16px rgba(115, 124, 104, 0.35); /* sage-tinted Muji shadows */
+        cursor: pointer;
+        z-index: 999;
+        transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+    }
+    
+    .mobile-fab:hover {
+        transform: scale(1.05) translateY(-2px);
+        box-shadow: 0 8px 24px rgba(115, 124, 104, 0.45);
+    }
+    
+    .mobile-fab:active {
+        transform: scale(0.95) translateY(0);
+    }
+    
+    .mobile-fab svg {
+        width: 24px;
+        height: 24px;
+        stroke-width: 2.5px;
+    }
 }
 
 @media (max-width: 580px) {
@@ -1382,6 +1473,7 @@ main.main-content {
         flex-direction: column;
         align-items: flex-start;
         gap: 1rem;
+        margin-bottom: 1.5rem;
     }
     
     .btn-primary, .btn-secondary {
@@ -1392,6 +1484,7 @@ main.main-content {
     .filter-bar {
         flex-direction: column;
         align-items: stretch;
+        padding: 1rem;
     }
     
     .search-box {
@@ -1400,6 +1493,52 @@ main.main-content {
     
     .select-filter {
         width: 100%;
+    }
+    
+    main.main-content {
+        padding: 1rem;
+    }
+    
+    /* Maximize space for modal overlay on narrow phones */
+    .modal-overlay {
+        padding: 0.75rem;
+    }
+    
+    .modal-container {
+        border-radius: var(--radius-md);
+        max-height: 95vh;
+    }
+    
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+    }
+    
+    .modal-body {
+        padding: 1.25rem 1.5rem;
+    }
+    
+    .modal-footer {
+        padding: 1rem 1.5rem;
+    }
+    
+    /* Responsive stacking for inline grid selectors in index.html */
+    .modal-body div[style*="grid-template-columns: 1fr 1fr"],
+    .modal-body div[style*="grid-template-columns:1fr 1fr"] {
+        grid-template-columns: 1fr !important;
+        gap: 0.75rem !important;
+    }
+    
+    /* Make detail-meta-grid 1 column */
+    .detail-meta-grid {
+        grid-template-columns: 1fr !important;
+        gap: 1rem !important;
+        padding: 1rem !important;
+    }
+    
+    /* Make sync inputs grid 1 column */
+    .sync-inputs-grid {
+        grid-template-columns: 1fr !important;
+        gap: 0.75rem !important;
     }
 }
 
