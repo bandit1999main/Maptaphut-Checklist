@@ -576,11 +576,6 @@ window.TaskDB = {
         }).then(() => true);
     },
 
-        return this._transaction('attachments', 'readwrite', (store) => {
-            return store.put(attachment);
-        });
-    },
-
     /**
      * Get a specific attachment with its full blob data
      * @param {String} attachmentId 
