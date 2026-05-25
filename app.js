@@ -2130,14 +2130,10 @@ function setupAuthObserver() {
             await window.TaskDB.saveUserProfile(user);
             console.log("Logged in user:", user.displayName);
             
-            // Auto connect Google Drive on login if configured and not already authenticated
-            if (window.TaskDB.gdriveConfig.clientId && !window.TaskDB.isGDriveReady()) {
-                console.log("Auto-connecting to Google Drive...");
-                window.TaskDB.signInGDrive().then(() => {
-                    console.log("Google Drive auto-connected successfully!");
-                    renderGDriveSettings();
-                }).catch(err => console.warn("Google Drive auto-connect skipped/failed:", err));
-            }
+            // Load Google Drive shared config and token dynamically from Firestore when user auth shifts
+            window.TaskDB.loadGDriveConfig().then(() => {
+                renderGDriveSettings();
+            }).catch(e => console.warn(e));
         } else {
             currentLoggedUser = null;
             console.log("No user logged in.");

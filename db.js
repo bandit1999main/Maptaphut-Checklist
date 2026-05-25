@@ -39,7 +39,7 @@ window.TaskDB = {
     /**
      * Load Google Drive config from localStorage & active session
      */
-    loadGDriveConfig() {
+    async loadGDriveConfig() {
         const savedClientId = localStorage.getItem('finance_checklist_gdrive_client_id') || '';
         const savedApiKey = localStorage.getItem('finance_checklist_gdrive_api_key') || '';
         const savedFolderId = localStorage.getItem('finance_checklist_gdrive_folder_id') || '';
@@ -50,20 +50,67 @@ window.TaskDB = {
             folderId: savedFolderId
         };
         
-        // Retrieve session token
+        // Retrieve session token from local storage first
         this.gdriveAccessToken = localStorage.getItem('finance_checklist_gdrive_access_token') || null;
         this.gdriveTokenExpiresAt = parseInt(localStorage.getItem('finance_checklist_gdrive_token_expires_at') || '0', 10);
+
+        // In Firebase mode, check if there's a fresh shared token uploaded by Admin in Firestore
+        if (this.mode === 'firebase' && this.firestore) {
+            try {
+                const doc = await this.firestore.collection(`${this.prefix}gdrive_config`).doc('shared_config').get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    // Load client configuration if missing locally
+                    if (!this.gdriveConfig.clientId && data.clientId) {
+                        this.gdriveConfig.clientId = data.clientId;
+                        localStorage.setItem('finance_checklist_gdrive_client_id', data.clientId);
+                    }
+                    if (!this.gdriveConfig.apiKey && data.apiKey) {
+                        this.gdriveConfig.apiKey = data.apiKey;
+                        localStorage.setItem('finance_checklist_gdrive_api_key', data.apiKey);
+                    }
+                    if (!this.gdriveConfig.folderId && data.folderId) {
+                        this.gdriveConfig.folderId = data.folderId;
+                        localStorage.setItem('finance_checklist_gdrive_folder_id', data.folderId);
+                    }
+
+                    // Check if Firestore has a fresh, valid shared token (at least 2 minutes before expiry)
+                    const firestoreExpiresAt = parseInt(data.tokenExpiresAt || '0', 10);
+                    if (data.accessToken && firestoreExpiresAt > Date.now() + 120000) {
+                        // Use Firestore shared token instead!
+                        this.gdriveAccessToken = data.accessToken;
+                        this.gdriveTokenExpiresAt = firestoreExpiresAt;
+                        localStorage.setItem('finance_checklist_gdrive_access_token', data.accessToken);
+                        localStorage.setItem('finance_checklist_gdrive_token_expires_at', firestoreExpiresAt.toString());
+                    }
+                }
+            } catch (err) {
+                console.warn("Failed to sync shared Google Drive token from Firestore:", err);
+            }
+        }
     },
 
     /**
-     * Save Google Drive config to localStorage
+     * Save Google Drive config to localStorage & optional Firestore sync
      */
-    saveGDriveConfig(clientId, apiKey, folderId) {
+    async saveGDriveConfig(clientId, apiKey, folderId) {
         localStorage.setItem('finance_checklist_gdrive_client_id', clientId);
         localStorage.setItem('finance_checklist_gdrive_api_key', apiKey);
         localStorage.setItem('finance_checklist_gdrive_folder_id', folderId);
         
         this.gdriveConfig = { clientId, apiKey, folderId };
+
+        if (this.mode === 'firebase' && this.firestore) {
+            try {
+                await this.firestore.collection(`${this.prefix}gdrive_config`).doc('shared_config').set({
+                    clientId,
+                    apiKey,
+                    folderId
+                }, { merge: true });
+            } catch (err) {
+                console.warn("Failed to save shared Google Drive config to Firestore:", err);
+            }
+        }
     },
 
     /**
@@ -108,7 +155,7 @@ window.TaskDB = {
                 const tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: this.gdriveConfig.clientId,
                     scope: 'https://www.googleapis.com/auth/drive.file', // safe & scoped access
-                    callback: (response) => {
+                    callback: async (response) => {
                         if (response.error !== undefined) {
                             console.error("OAuth error:", response);
                             return reject(new Error("เข้าสู่ระบบไม่สำเร็จ: " + response.error));
@@ -119,6 +166,23 @@ window.TaskDB = {
 
                         localStorage.setItem('finance_checklist_gdrive_access_token', this.gdriveAccessToken);
                         localStorage.setItem('finance_checklist_gdrive_token_expires_at', this.gdriveTokenExpiresAt.toString());
+
+                        // Automatically sync this active token up to Firebase firestore for colleagues sharing
+                        if (this.mode === 'firebase' && this.firestore) {
+                            try {
+                                await this.firestore.collection(`${this.prefix}gdrive_config`).doc('shared_config').set({
+                                    clientId: this.gdriveConfig.clientId,
+                                    apiKey: this.gdriveConfig.apiKey,
+                                    folderId: this.gdriveConfig.folderId,
+                                    accessToken: this.gdriveAccessToken,
+                                    tokenExpiresAt: this.gdriveTokenExpiresAt.toString(),
+                                    lastUpdatedBy: firebase.auth().currentUser ? firebase.auth().currentUser.displayName : 'Admin'
+                                }, { merge: true });
+                                console.log("Google Drive access token successfully shared to Firebase Firestore!");
+                            } catch (fsErr) {
+                                console.warn("Failed to upload shared Google Drive token to Firestore:", fsErr);
+                            }
+                        }
 
                         resolve(this.gdriveAccessToken);
                     }
@@ -203,9 +267,6 @@ window.TaskDB = {
      * @returns {Promise<any>} Resolves when initialized
      */
     init() {
-        // Load Google Drive Config from Storage
-        this.loadGDriveConfig();
-
         return new Promise((resolve, reject) => {
             // Check if Firebase config is saved in localStorage
             const savedConfigStr = localStorage.getItem('finance_checklist_firebase_config');
@@ -244,8 +305,16 @@ window.TaskDB = {
                         }
                         this.mode = 'firebase';
                         
-                        console.log("Firebase active (Mode: " + (savedConfigStr ? "Custom" : "Default") + "). Prefix: " + this.prefix);
-                        return resolve(this.mode);
+                        // Load Google Drive Config asynchronously once Firebase is initialized
+                        this.loadGDriveConfig().then(() => {
+                            console.log("Google Drive shared config loaded in Firebase mode.");
+                            console.log("Firebase active. Prefix: " + this.prefix);
+                            resolve(this.mode);
+                        }).catch(err => {
+                            console.warn("Async Google Drive config loading encountered error:", err);
+                            resolve(this.mode);
+                        });
+                        return;
                     } else {
                         console.warn("Firebase SDK not loaded, falling back to IndexedDB local-first mode.");
                     }
@@ -255,6 +324,7 @@ window.TaskDB = {
             }
 
             // Fallback: Local IndexedDB mode
+            this.loadGDriveConfig().catch(e => console.warn(e));
             this.mode = 'local';
             if (this.db) {
                 return resolve(this.mode);
