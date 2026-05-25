@@ -2364,10 +2364,11 @@ main.main-content {
     padding: 0.4rem 0.5rem;
     border-radius: 6px;
     transition: background 0.2s ease;
+    cursor: pointer;
 }
 
 .team-member-row:hover {
-    background: rgba(255, 255, 255, 0.5);
+    background: rgba(181, 137, 112, 0.12);
 }
 
 .member-avatar {

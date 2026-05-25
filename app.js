@@ -912,18 +912,24 @@ function renderTasksList() {
         const dueDetails = calculateDueDetails(task.dueDate, task.status);
         const hasAttachments = task.hasAttachments;
         
+        // Check if current user has edit permission for this task.
+        // Rule: Can edit if (not firebase mode) OR (task is unassigned) OR (current user is the assignee or creator).
+        const isMyTask = !task.assignedTo || (currentLoggedUser && task.assignedTo.uid === currentLoggedUser.uid);
+        const isOffline = window.TaskDB.mode !== 'firebase';
+        const hasModifyPermission = isOffline || isMyTask;
+
         card.innerHTML = `
             <div class="task-card-header">
                 <span class="category-tag" style="--cat-bg: rgba(${hexToRgb(cat.color)}, 0.12); --cat-color: ${cat.color}; --cat-border: rgba(${hexToRgb(cat.color)}, 0.25);">
                     ${cat.name}
                 </span>
-                <div class="task-card-actions">
+                <div class="task-card-actions" style="${hasModifyPermission ? '' : 'display: none;'}">
                     <button class="icon-btn edit-task-btn" title="แก้ไขข้อมูลงาน"><i data-lucide="edit-2"></i></button>
                     <button class="icon-btn delete-btn delete-task-btn" title="ลบงานนี้"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>
             
-            <h3 class="task-title">${task.title}</h3>
+            <h3 class="task-title" style="cursor: pointer;" title="คลิกเพื่อดูรายละเอียด">${task.title}</h3>
             <p class="task-desc">${task.description || '<span style="color: var(--text-muted); font-style: italic;">ไม่มีคำอธิบายเพิ่มเติม</span>'}</p>
             
             <div class="task-meta">
@@ -932,7 +938,7 @@ function renderTasksList() {
                     <span>${dueDetails.text}</span>
                 </div>
                 
-                <span class="status-badge ${getStatusClass(task.status)}">
+                <span class="status-badge ${getStatusClass(task.status)}" style="${hasModifyPermission ? 'cursor: pointer;' : 'cursor: default; pointer-events: none; opacity: 0.85;'}">
                     ${task.status}
                 </span>
             </div>
@@ -957,21 +963,23 @@ function renderTasksList() {
             openTaskDetailsModal(task.id);
         });
         
-        // Quick edits and deletes
-        card.querySelector('.edit-task-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            openTaskModal(task.id);
-        });
-        
-        card.querySelector('.delete-task-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            confirmDeleteTask(task.id, task.title);
-        });
-        
-        card.querySelector('.status-badge').addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleTaskStatus(task.id);
-        });
+        // Quick edits and deletes if permission allowed
+        if (hasModifyPermission) {
+            card.querySelector('.edit-task-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                openTaskModal(task.id);
+            });
+            
+            card.querySelector('.delete-task-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                confirmDeleteTask(task.id, task.title);
+            });
+            
+            card.querySelector('.status-badge').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleTaskStatus(task.id);
+            });
+        }
 
         container.appendChild(card);
     });
@@ -1433,21 +1441,36 @@ async function openTaskDetailsModal(taskId) {
         attachmentsContainer.parentNode.appendChild(previewWrapper);
     }
     
-    // Wire modal buttons
+    // Wire modal buttons based on modify permission
     const overlay = document.getElementById('detail-modal-overlay');
+    const editBtn = document.getElementById('btn-detail-edit');
+    const deleteBtn = document.getElementById('btn-detail-delete');
+
+    // Rule: Can edit if (not firebase mode) OR (task is unassigned) OR (current user is the assignee)
+    const isMyTask = !task.assignedTo || (currentLoggedUser && task.assignedTo.uid === currentLoggedUser.uid);
+    const isOffline = window.TaskDB.mode !== 'firebase';
+    const hasModifyPermission = isOffline || isMyTask;
+
+    if (hasModifyPermission) {
+        if (editBtn) editBtn.style.display = 'inline-flex';
+        if (deleteBtn) deleteBtn.style.display = 'inline-flex';
+        
+        editBtn.onclick = () => {
+            overlay.classList.remove('open');
+            openTaskModal(task.id);
+        };
+        
+        deleteBtn.onclick = () => {
+            overlay.classList.remove('open');
+            confirmDeleteTask(task.id, task.title);
+        };
+    } else {
+        if (editBtn) editBtn.style.display = 'none';
+        if (deleteBtn) deleteBtn.style.display = 'none';
+    }
     
     document.getElementById('btn-close-detail-modal').onclick = () => overlay.classList.remove('open');
     document.getElementById('btn-close-detail-footer').onclick = () => overlay.classList.remove('open');
-    
-    document.getElementById('btn-detail-edit').onclick = () => {
-        overlay.classList.remove('open');
-        openTaskModal(task.id);
-    };
-    
-    document.getElementById('btn-detail-delete').onclick = () => {
-        overlay.classList.remove('open');
-        confirmDeleteTask(task.id, task.title);
-    };
     
     // Subscribe to comments feed
     setupCommentsSection(task.id);
@@ -2114,6 +2137,7 @@ function setupGDriveSettings() {
  * ====================================================
  */
 let currentLoggedUser = null;
+let viewingUserProfileUid = null; // Stored user ID currently active in Profile page (null = viewing own profile)
 let activeCommentsUnsubscribe = null;
 let currentChatPhotoFile = null;
 
@@ -2216,6 +2240,14 @@ function setupProfileView() {
             }
         });
     }
+
+    const backBtn = document.getElementById('btn-back-to-my-profile');
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            viewingUserProfileUid = null; // Clear view override
+            renderProfilePage();
+        });
+    }
 }
 
 function renderProfilePage() {
@@ -2235,16 +2267,63 @@ function renderProfilePage() {
     const profileName = document.getElementById('profile-user-name');
     const profileEmail = document.getElementById('profile-user-email');
     
-    if (profileAvatar) profileAvatar.src = currentLoggedUser.photoURL || '';
-    if (profileName) profileName.textContent = currentLoggedUser.displayName || 'พนักงาน';
-    if (profileEmail) profileEmail.textContent = currentLoggedUser.email || '';
-    
+    const banner = document.getElementById('viewing-other-profile-banner');
+    const logoutBtn = document.getElementById('btn-google-logout');
+    const saveNotesBtn = document.getElementById('btn-save-quick-notes');
     const quickNotesArea = document.getElementById('profile-quick-notes');
-    if (quickNotesArea) {
-        quickNotesArea.value = localStorage.getItem(`finance_checklist_quicknotes_${currentLoggedUser.uid}`) || '';
+    
+    let targetUser = currentLoggedUser;
+    
+    if (viewingUserProfileUid && viewingUserProfileUid !== currentLoggedUser.uid) {
+        // Fetch teammate details from AppState (or loaded users list if available)
+        // We can search through task assignments or load from users list in team directory
+        // To be safe, we fetch from our cached team directory list or local caches.
+        // Let's check AppState.teamUsers if we populated it, or search inside tasks for users info
+        let foundTeammate = null;
+        for (const t of AppState.tasks) {
+            if (t.assignedTo && t.assignedTo.uid === viewingUserProfileUid) {
+                foundTeammate = t.assignedTo;
+                break;
+            }
+        }
+        
+        if (foundTeammate) {
+            targetUser = foundTeammate;
+        } else {
+            // Fallback: search locally stored users
+            targetUser = {
+                uid: viewingUserProfileUid,
+                displayName: 'เพื่อนร่วมงาน',
+                email: 'ข้อมูลไม่ได้เปิดเผยต่อภายนอก',
+                photoURL: ''
+            };
+        }
+        
+        // Show banner and hide custom notes editing
+        if (banner) banner.classList.remove('hidden');
+        if (logoutBtn) logoutBtn.classList.add('hidden');
+        if (saveNotesBtn) saveNotesBtn.disabled = true;
+        if (quickNotesArea) {
+            quickNotesArea.value = 'ไม่สามารถอ่านหรือเข้าถึงสมุดบันทึกส่วนตัวของบุคคลอื่นได้เพื่อความเป็นส่วนตัวสูงสุด 🔒';
+            quickNotesArea.disabled = true;
+        }
+    } else {
+        // Own profile view
+        if (banner) banner.classList.add('hidden');
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
+        if (saveNotesBtn) saveNotesBtn.disabled = false;
+        if (quickNotesArea) {
+            quickNotesArea.value = localStorage.getItem(`finance_checklist_quicknotes_${currentLoggedUser.uid}`) || '';
+            quickNotesArea.disabled = false;
+        }
     }
     
-    const personalTasks = AppState.tasks.filter(t => t.assignedTo && t.assignedTo.uid === currentLoggedUser.uid);
+    if (profileAvatar) profileAvatar.src = targetUser.photoURL || '';
+    if (profileName) profileName.textContent = targetUser.displayName || 'พนักงาน';
+    if (profileEmail) profileEmail.textContent = targetUser.email || '';
+    
+    // Calculate tasks metrics based on targetUser instead of current user
+    const personalTasks = AppState.tasks.filter(t => t.assignedTo && t.assignedTo.uid === targetUser.uid);
     const totalCount = personalTasks.length;
     const completedCount = personalTasks.filter(t => t.status === 'เสร็จแล้ว').length;
     const pendingCount = totalCount - completedCount;
@@ -2266,7 +2345,7 @@ function renderProfilePage() {
         if (personalTasks.length === 0) {
             listContainer.innerHTML = `
                 <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 2rem 0;">
-                    ไม่มีงานที่คุณรับผิดชอบในขณะนี้
+                    ไม่มีงานที่รับผิดชอบในขณะนี้
                 </div>
             `;
         } else {
@@ -2351,6 +2430,13 @@ async function renderTeamDirectory() {
                     </div>
                     <div class="member-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'ออนไลน์ล่าสุดภายใน 15 นาที' : 'ออฟไลน์'}"></div>
                 `;
+                
+                row.addEventListener('click', () => {
+                    viewingUserProfileUid = user.uid; // Set target uid
+                    renderProfilePage(); // Re-render view with teammate statistics
+                    showToast(`กำลังเปิดดูโปรไฟล์ของคุณ "${user.displayName}" 👁️`, 'info');
+                });
+                
                 listEl.appendChild(row);
             });
     } catch (err) {

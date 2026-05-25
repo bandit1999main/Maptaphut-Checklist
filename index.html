@@ -582,7 +582,18 @@ const firebaseConfig = {
                 </div>
 
                 <!-- Logged In State View -->
-                <div class="profile-dashboard-layout hidden" id="profile-logged-in">
+                <div class="profile-dashboard-layout hidden" id="profile-logged-in" style="position: relative;">
+                    <!-- Back Button when viewing other profiles -->
+                    <div id="viewing-other-profile-banner" class="hidden" style="grid-column: span 2; display: flex; justify-content: space-between; align-items: center; background: rgba(181, 137, 112, 0.1); border: 1px solid rgba(181, 137, 112, 0.25); padding: 0.75rem 1.25rem; border-radius: var(--radius-md); margin-bottom: 0.5rem; width: 100%;">
+                        <div style="font-size: 0.9rem; font-weight: 600; color: var(--accent-earth); display: flex; align-items: center; gap: 0.5rem;">
+                            <i data-lucide="eye" style="width: 18px; height: 18px;"></i>
+                            <span>คุณกำลังดูโปรไฟล์ของเพื่อนร่วมงาน (โหมดอ่านอย่างเดียว)</span>
+                        </div>
+                        <button class="btn-primary" id="btn-back-to-my-profile" style="background: var(--accent-earth); border: none; padding: 0.4rem 1rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.3rem;">
+                            <i data-lucide="arrow-left" style="width: 14px; height: 14px;"></i>
+                            <span>กลับสู่โปรไฟล์ของฉัน</span>
+                        </button>
+                    </div>
                     <!-- Column 1: Info Card -->
                     <div class="glass-card profile-info-card" style="padding: 2rem; display: flex; flex-direction: column; align-items: center; text-align: center;">
                         <div style="position: relative; margin-bottom: 1.25rem;">
