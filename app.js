@@ -1879,8 +1879,6 @@ function setupAuthObserver() {
         return;
     }
     
-    let autoLoginTriggered = false;
-    
     firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
             currentLoggedUser = user;
@@ -1898,23 +1896,6 @@ function setupAuthObserver() {
         } else {
             currentLoggedUser = null;
             console.log("No user logged in.");
-            
-            // Gentle auto-trigger Google login on first load
-            if (!autoLoginTriggered) {
-                autoLoginTriggered = true;
-                setTimeout(() => {
-                    // Check again in case they logged in during the delay
-                    if (!firebase.auth().currentUser) {
-                        console.log("Auto-triggering Google Sign-In popup...");
-                        const provider = new firebase.auth.GoogleAuthProvider();
-                        firebase.auth().signInWithPopup(provider).then(() => {
-                            alert("เข้าสู่ระบบด้วย Google สำเร็จ! 🎉");
-                        }).catch(err => {
-                            console.warn("Auto Google login popup blocked or closed by user:", err);
-                        });
-                    }
-                }, 1500);
-            }
         }
         updateUserUI();
         await populateAssigneesList();
@@ -1930,42 +1911,62 @@ function updateUserUI() {
     const sidebarAvatar = document.getElementById('sidebar-user-avatar');
     const sidebarName = document.getElementById('sidebar-user-name');
     const sidebarEmail = document.getElementById('sidebar-user-email');
+    const lockOverlay = document.getElementById('login-lock-overlay');
     
     if (currentLoggedUser) {
         if (sidebarCard) sidebarCard.classList.remove('hidden');
         if (sidebarAvatar) sidebarAvatar.src = currentLoggedUser.photoURL || '';
         if (sidebarName) sidebarName.textContent = currentLoggedUser.displayName || 'พนักงาน';
         if (sidebarEmail) sidebarEmail.textContent = currentLoggedUser.email || '';
+        if (lockOverlay) lockOverlay.style.display = 'none'; // Unlock the app
     } else {
         if (sidebarCard) sidebarCard.classList.add('hidden');
+        if (lockOverlay) lockOverlay.style.display = 'flex'; // Lock the app
     }
 }
 
 function setupProfileView() {
     const loginBtn = document.getElementById('btn-google-login');
+    const lockLoginBtn = document.getElementById('btn-lock-login');
     const logoutBtn = document.getElementById('btn-google-logout');
     const saveNotesBtn = document.getElementById('btn-save-quick-notes');
     
-    if (loginBtn) {
-        loginBtn.addEventListener('click', async () => {
-            try {
-                loginBtn.disabled = true;
-                loginBtn.textContent = 'กำลังลงชื่อเข้าใช้...';
-                await window.TaskDB.signInWithGoogle();
-                alert("ลงชื่อเข้าใช้ด้วย Google สำเร็จ! 🎉");
-            } catch (err) {
-                console.error(err);
-                alert("ไม่สามารถเข้าสู่ระบบได้: " + err.message);
-            } finally {
-                loginBtn.disabled = false;
-                loginBtn.innerHTML = `
+    const triggerLogin = async (buttonEl) => {
+        try {
+            buttonEl.disabled = true;
+            const originalHTML = buttonEl.innerHTML;
+            buttonEl.textContent = 'กำลังลงชื่อเข้าใช้...';
+            await window.TaskDB.signInWithGoogle();
+            alert("ลงชื่อเข้าใช้ด้วย Google สำเร็จ! 🎉");
+        } catch (err) {
+            console.error(err);
+            alert("ไม่สามารถเข้าสู่ระบบได้: " + err.message);
+        } finally {
+            buttonEl.disabled = false;
+            if (buttonEl.id === 'btn-lock-login') {
+                buttonEl.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="white" style="margin-right: 4px;">
+                        <path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C17.955 2.192 15.34 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c5.895 0 9.815-4.14 9.815-10 0-.673-.072-1.185-.16-1.695H12.24z"/>
+                    </svg>
+                    <span>เข้าสู่ระบบด้วย Google Account</span>
+                `;
+            } else {
+                buttonEl.innerHTML = `
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="white" style="margin-right: 4px;">
                         <path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C17.955 2.192 15.34 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c5.895 0 9.815-4.14 9.815-10 0-.673-.072-1.185-.16-1.695H12.24z"/>
                     </svg>
                     <span>เข้าสู่ระบบด้วย Google Account</span>
                 `;
             }
-        });
+        }
+    };
+
+    if (loginBtn) {
+        loginBtn.addEventListener('click', () => triggerLogin(loginBtn));
+    }
+    
+    if (lockLoginBtn) {
+        lockLoginBtn.addEventListener('click', () => triggerLogin(lockLoginBtn));
     }
     
     if (logoutBtn) {

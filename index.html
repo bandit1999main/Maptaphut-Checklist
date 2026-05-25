@@ -27,6 +27,29 @@
 </head>
 <body>
 
+    <!-- Login Lock Screen Overlay -->
+    <div class="login-lock-overlay" id="login-lock-overlay" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(250, 249, 246, 0.97); z-index: 99999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(15px);">
+        <!-- Cozy Muji Login Card -->
+        <div class="glass-card profile-auth-card" style="max-width: 480px; width: 90%; text-align: center; padding: 3.5rem 2.5rem; box-shadow: 0 12px 40px rgba(163, 154, 137, 0.18); border: 1px solid var(--glass-border); background: #ffffff; border-radius: var(--radius-lg); display: flex; flex-direction: column; align-items: center;">
+            <div class="profile-auth-icon-box" style="width: 80px; height: 80px; background: rgba(181, 137, 112, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem;">
+                <i data-lucide="shield-check" style="width: 42px; height: 42px; color: var(--accent-earth);"></i>
+            </div>
+            <h2 style="font-size: 1.8rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.75rem; font-family: 'Mitr', sans-serif;">ระบบตรวจตามงานการเงิน</h2>
+            <p style="font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 2rem; line-height: 1.6;">
+                กรุณาลงชื่อเข้าใช้ด้วยบัญชี Google เพื่อเข้าสู่ระบบตรวจตามภารกิจงาน สรุปวิเคราะห์ผลความสำเร็จ และห้องแชทแนบหลักฐานอัปโหลด Google Drive
+            </p>
+            <button class="btn-primary" id="btn-lock-login" style="background: #ea4335; border: none; padding: 0.85rem 1.5rem; font-weight: 600; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.75rem; border-radius: 8px; font-size: 1rem; cursor: pointer; color: white;">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="white" style="margin-right: 4px;">
+                    <path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C17.955 2.192 15.34 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c5.895 0 9.815-4.14 9.815-10 0-.673-.072-1.185-.16-1.695H12.24z"/>
+                </svg>
+                <span>เข้าสู่ระบบด้วย Google Account</span>
+            </button>
+            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1.5rem; line-height: 1.4;">
+                * เฉพาะบัญชีที่ได้รับสิทธิ์ในการตรวจงานประจำการเงินของทีมงานเท่านั้น
+            </div>
+        </div>
+    </div>
+
     <!-- Ambient Glowing Spheres (Premium Space Background Effect) -->
     <div class="ambient-glow glow-1"></div>
     <div class="ambient-glow glow-2"></div>
