@@ -1717,31 +1717,35 @@ function renderGDriveSettings() {
     const isReady = window.TaskDB.isGDriveReady();
 
     if (isReady) {
-        statusCard.className = 'sync-status-card status-online';
-        statusDot.style.background = '#7a9a84'; // Cozy Sage Green
-        statusTitle.textContent = 'สถานะ: 🟢 เชื่อมต่อ Google Drive สำเร็จ';
-        statusDesc.textContent = 'บัญชีคลาวด์ของคุณเชื่อมต่อและพร้อมสำหรับรับอัปโหลดไฟล์เอกสารหน้างานขนาดใหญ่ (PDF) แล้ว! ไม่จำกัดโควต้า Firestore';
+        if (statusCard) statusCard.className = 'sync-status-card status-online';
+        if (statusDot) statusDot.style.background = '#7a9a84'; // Cozy Sage Green
+        if (statusTitle) statusTitle.textContent = 'สถานะ: 🟢 เชื่อมต่อ Google Drive สำเร็จ';
+        if (statusDesc) statusDesc.textContent = 'บัญชีคลาวด์ของคุณเชื่อมต่อและพร้อมสำหรับรับอัปโหลดไฟล์เอกสารหน้างานขนาดใหญ่ (PDF) แล้ว! ไม่จำกัดโควต้า Firestore';
         
-        connectText.textContent = 'เชื่อมต่อบัญชีใหม่ / สลับบัญชี';
-        connectBtn.style.background = 'rgba(122, 154, 132, 0.1)';
-        connectBtn.style.color = 'var(--accent-sage)';
-        connectBtn.style.borderColor = 'rgba(122, 154, 132, 0.3)';
+        if (connectText) connectText.textContent = 'เชื่อมต่อบัญชีใหม่ / สลับบัญชี';
+        if (connectBtn) {
+            connectBtn.style.background = 'rgba(122, 154, 132, 0.1)';
+            connectBtn.style.color = 'var(--accent-sage)';
+            connectBtn.style.borderColor = 'rgba(122, 154, 132, 0.3)';
+        }
     } else {
-        statusCard.className = 'sync-status-card status-offline';
-        statusDot.style.background = '#e0a96d'; // Cozy Warm Sand
+        if (statusCard) statusCard.className = 'sync-status-card status-offline';
+        if (statusDot) statusDot.style.background = '#e0a96d'; // Cozy Warm Sand
         
         if (config.clientId && config.apiKey) {
-            statusTitle.textContent = 'สถานะ: 🟡 บันทึกการตั้งค่าแล้ว (รอเชื่อมบัญชี)';
-            statusDesc.textContent = 'ข้อมูลคีย์จัดเก็บในบราวเซอร์แล้ว กรุณากดปุ่ม "ลงชื่อเข้าใช้งาน Google Drive" ด้านล่างเพื่อมอบสิทธิ์ความปลอดภัย';
+            if (statusTitle) statusTitle.textContent = 'สถานะ: 🟡 บันทึกการตั้งค่าแล้ว (รอเชื่อมบัญชี)';
+            if (statusDesc) statusDesc.textContent = 'ข้อมูลคีย์จัดเก็บในบราวเซอร์แล้ว กรุณากดปุ่ม "ลงชื่อเข้าใช้งาน Google Drive" ด้านล่างเพื่อมอบสิทธิ์ความปลอดภัย';
         } else {
-            statusTitle.textContent = 'สถานะ: ⚪ ยังไม่ได้ตั้งค่า Google Drive';
-            statusDesc.textContent = 'กรุณากรอก OAuth Client ID และ API Key จาก Google Cloud Console เพื่อเริ่มต้นติดตั้งระบบเก็บไฟล์ส่วนตัว';
+            if (statusTitle) statusTitle.textContent = 'สถานะ: ⚪ ยังไม่ได้ตั้งค่า Google Drive';
+            if (statusDesc) statusDesc.textContent = 'กรุณากรอก OAuth Client ID และ API Key จาก Google Cloud Console เพื่อเริ่มต้นติดตั้งระบบเก็บไฟล์ส่วนตัว';
         }
         
-        connectText.textContent = 'ลงชื่อเข้าใช้งาน Google Drive';
-        connectBtn.style.background = 'rgba(181, 137, 112, 0.1)';
-        connectBtn.style.color = 'var(--accent-earth)';
-        connectBtn.style.borderColor = 'rgba(181, 137, 112, 0.3)';
+        if (connectText) connectText.textContent = 'ลงชื่อเข้าใช้งาน Google Drive';
+        if (connectBtn) {
+            connectBtn.style.background = 'rgba(181, 137, 112, 0.1)';
+            connectBtn.style.color = 'var(--accent-earth)';
+            connectBtn.style.borderColor = 'rgba(181, 137, 112, 0.3)';
+        }
     }
 }
 
