@@ -1879,14 +1879,42 @@ function setupAuthObserver() {
         return;
     }
     
+    let autoLoginTriggered = false;
+    
     firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
             currentLoggedUser = user;
             await window.TaskDB.saveUserProfile(user);
             console.log("Logged in user:", user.displayName);
+            
+            // Auto connect Google Drive on login if configured and not already authenticated
+            if (window.TaskDB.gdriveConfig.clientId && !window.TaskDB.isGDriveReady()) {
+                console.log("Auto-connecting to Google Drive...");
+                window.TaskDB.signInGDrive().then(() => {
+                    console.log("Google Drive auto-connected successfully!");
+                    renderGDriveSettings();
+                }).catch(err => console.warn("Google Drive auto-connect skipped/failed:", err));
+            }
         } else {
             currentLoggedUser = null;
             console.log("No user logged in.");
+            
+            // Gentle auto-trigger Google login on first load
+            if (!autoLoginTriggered) {
+                autoLoginTriggered = true;
+                setTimeout(() => {
+                    // Check again in case they logged in during the delay
+                    if (!firebase.auth().currentUser) {
+                        console.log("Auto-triggering Google Sign-In popup...");
+                        const provider = new firebase.auth.GoogleAuthProvider();
+                        firebase.auth().signInWithPopup(provider).then(() => {
+                            alert("เข้าสู่ระบบด้วย Google สำเร็จ! 🎉");
+                        }).catch(err => {
+                            console.warn("Auto Google login popup blocked or closed by user:", err);
+                        });
+                    }
+                }, 1500);
+            }
         }
         updateUserUI();
         await populateAssigneesList();

@@ -51,8 +51,8 @@ window.TaskDB = {
         };
         
         // Retrieve session token
-        this.gdriveAccessToken = sessionStorage.getItem('finance_checklist_gdrive_access_token') || null;
-        this.gdriveTokenExpiresAt = parseInt(sessionStorage.getItem('finance_checklist_gdrive_token_expires_at') || '0', 10);
+        this.gdriveAccessToken = localStorage.getItem('finance_checklist_gdrive_access_token') || null;
+        this.gdriveTokenExpiresAt = parseInt(localStorage.getItem('finance_checklist_gdrive_token_expires_at') || '0', 10);
     },
 
     /**
@@ -73,8 +73,8 @@ window.TaskDB = {
         localStorage.removeItem('finance_checklist_gdrive_client_id');
         localStorage.removeItem('finance_checklist_gdrive_api_key');
         localStorage.removeItem('finance_checklist_gdrive_folder_id');
-        sessionStorage.removeItem('finance_checklist_gdrive_access_token');
-        sessionStorage.removeItem('finance_checklist_gdrive_token_expires_at');
+        localStorage.removeItem('finance_checklist_gdrive_access_token');
+        localStorage.removeItem('finance_checklist_gdrive_token_expires_at');
         
         this.gdriveConfig = { clientId: '', apiKey: '', folderId: '' };
         this.gdriveAccessToken = null;
@@ -117,8 +117,8 @@ window.TaskDB = {
                         this.gdriveAccessToken = response.access_token;
                         this.gdriveTokenExpiresAt = Date.now() + (response.expires_in * 1000);
 
-                        sessionStorage.setItem('finance_checklist_gdrive_access_token', this.gdriveAccessToken);
-                        sessionStorage.setItem('finance_checklist_gdrive_token_expires_at', this.gdriveTokenExpiresAt.toString());
+                        localStorage.setItem('finance_checklist_gdrive_access_token', this.gdriveAccessToken);
+                        localStorage.setItem('finance_checklist_gdrive_token_expires_at', this.gdriveTokenExpiresAt.toString());
 
                         resolve(this.gdriveAccessToken);
                     }
