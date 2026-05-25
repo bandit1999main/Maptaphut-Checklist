@@ -74,6 +74,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         setupCategoryForm();
         setupTaskForm();
         setupSyncSettings(); // Initialize Cloud Sync settings page listeners
+        setupAuthObserver();
+        setupProfileView();
+        setupCommentsInputListeners();
         renderView();
         
         // Start live countdown updater (updates every minute)
@@ -157,11 +160,13 @@ function setupNavigation() {
     const navTasks = document.getElementById('btn-nav-tasks');
     const navCategories = document.getElementById('btn-nav-categories');
     const navSync = document.getElementById('btn-nav-sync');
+    const navProfile = document.getElementById('btn-nav-profile');
     
     const menuDashboardLi = document.getElementById('menu-dashboard-li');
     const menuTasksLi = document.getElementById('menu-tasks-li');
     const menuCategoriesLi = document.getElementById('menu-categories-li');
     const menuSyncLi = document.getElementById('menu-sync-li');
+    const menuProfileLi = document.getElementById('menu-profile-li');
     
     const btnCreateTaskMain = document.getElementById('btn-create-task-main');
     const btnCreateTaskFab = document.getElementById('btn-create-task-fab');
@@ -170,6 +175,7 @@ function setupNavigation() {
     navTasks.addEventListener('click', () => switchView('tasks'));
     navCategories.addEventListener('click', () => switchView('categories'));
     navSync.addEventListener('click', () => switchView('sync'));
+    if (navProfile) navProfile.addEventListener('click', () => switchView('profile'));
     
     btnCreateTaskMain.addEventListener('click', () => {
         openTaskModal();
@@ -189,12 +195,15 @@ function setupNavigation() {
         menuTasksLi.classList.remove('active');
         menuCategoriesLi.classList.remove('active');
         menuSyncLi.classList.remove('active');
+        if (menuProfileLi) menuProfileLi.classList.remove('active');
         
         // Hide all views
         document.getElementById('view-dashboard').classList.add('hidden');
         document.getElementById('view-tasks').classList.add('hidden');
         document.getElementById('view-categories').classList.add('hidden');
         document.getElementById('view-sync').classList.add('hidden');
+        const viewProfile = document.getElementById('view-profile');
+        if (viewProfile) viewProfile.classList.add('hidden');
         
         // Handle Mobile FAB visibility
         if (btnCreateTaskFab) {
@@ -227,6 +236,12 @@ function setupNavigation() {
             document.getElementById('page-title-text').textContent = 'ระบบเชื่อมต่อคลาวด์และแบ่งปัน (Cloud Sync)';
             document.getElementById('page-subtitle-text').textContent = 'เชื่อมโยงฐานข้อมูลส่วนกลางผ่าน Google Firebase และย้ายข้อมูลของคุณขึ้น Cloud';
             renderSyncSettings();
+        } else if (viewName === 'profile') {
+            if (menuProfileLi) menuProfileLi.classList.add('active');
+            if (viewProfile) viewProfile.classList.remove('hidden');
+            document.getElementById('page-title-text').textContent = 'โปรไฟล์ทีมงานและแดชบอร์ดส่วนบุคคล';
+            document.getElementById('page-subtitle-text').textContent = 'ดูสถานะภารกิจงานที่ได้รับมอบหมาย สรุปผลความสำเร็จ และจดบันทึกด่วนส่วนตัว';
+            renderProfilePage();
         }
         
         renderView();
@@ -711,6 +726,13 @@ function renderTasksList() {
                 </span>
             </div>
             
+            ${task.assignedTo ? `
+                <div class="card-assignee" style="display: flex; align-items: center; gap: 0.4rem; margin-top: 0.4rem; font-size: 0.78rem; color: var(--text-secondary);">
+                    <img src="${task.assignedTo.photoURL}" alt="Avatar" style="width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--glass-border);">
+                    <span>ผู้รับผิดชอบ: <strong>${task.assignedTo.displayName}</strong></span>
+                </div>
+            ` : ''}
+            
             ${hasAttachments ? `
                 <div class="card-attachment-count" style="margin-top: -0.4rem; font-size: 0.75rem;">
                     <i data-lucide="paperclip" style="width: 12px; height: 12px;"></i>
@@ -910,6 +932,7 @@ async function openTaskModal(taskId = null) {
     
     // Reload categories options
     populateCategoryFilters();
+    await populateAssigneesList();
     
     if (taskId) {
         // Edit mode
@@ -923,6 +946,12 @@ async function openTaskModal(taskId = null) {
         document.getElementById('task-status-select').value = task.status;
         document.getElementById('task-due-input').value = task.dueDate.slice(0, 16);
         document.getElementById('task-desc-input').value = task.description || '';
+        
+        if (task.assignedTo) {
+            document.getElementById('task-assignee-select').value = task.assignedTo.uid;
+        } else {
+            document.getElementById('task-assignee-select').value = '';
+        }
         
         // Fetch saved attachments to show in pending for reference
         const attachments = await window.TaskDB.getAttachmentsForTask(taskId);
@@ -969,6 +998,21 @@ async function saveTaskSubmit() {
     // Check if there are attachments
     const hasAttachments = AppState.pendingFiles.length > 0;
     
+    const assigneeSelect = document.getElementById('task-assignee-select');
+    let assignedTo = null;
+    if (assigneeSelect && assigneeSelect.value && window.TaskDB.mode === 'firebase') {
+        const users = await window.TaskDB.getAllUsers();
+        const selectedUser = users.find(u => u.uid === assigneeSelect.value);
+        if (selectedUser) {
+            assignedTo = {
+                uid: selectedUser.uid,
+                displayName: selectedUser.displayName,
+                email: selectedUser.email,
+                photoURL: selectedUser.photoURL
+            };
+        }
+    }
+    
     const taskData = {
         id,
         title,
@@ -978,7 +1022,8 @@ async function saveTaskSubmit() {
         description,
         createdAt,
         updatedAt,
-        hasAttachments
+        hasAttachments,
+        assignedTo
     };
     
     // 1. Save Task to IndexedDB
@@ -1067,6 +1112,20 @@ async function openTaskDetailsModal(taskId) {
     document.getElementById('detail-updated-value').textContent = formatDateString(task.updatedAt);
     document.getElementById('detail-desc-value').innerHTML = task.description ? task.description.replace(/\n/g, '<br>') : '<span style="color: var(--text-muted); font-style: italic;">ไม่มีคำอธิบายเพิ่มเติม</span>';
     
+    const assigneeVal = document.getElementById('detail-assignee-value');
+    if (assigneeVal) {
+        if (task.assignedTo) {
+            assigneeVal.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <img src="${task.assignedTo.photoURL}" alt="Avatar" style="width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--accent-earth);">
+                    <span>${task.assignedTo.displayName}</span>
+                </div>
+            `;
+        } else {
+            assigneeVal.textContent = 'ไม่ระบุ';
+        }
+    }
+    
     // Load Attachments list with download capabilities
     const attachments = await window.TaskDB.getAttachmentsForTask(taskId);
     document.getElementById('detail-attachment-count-text').textContent = attachments.length + ' ไฟล์';
@@ -1152,6 +1211,9 @@ async function openTaskDetailsModal(taskId) {
         overlay.classList.remove('open');
         confirmDeleteTask(task.id, task.title);
     };
+    
+    // Subscribe to comments feed
+    setupCommentsSection(task.id);
     
     overlay.classList.add('open');
     lucide.createIcons();
@@ -1795,6 +1857,367 @@ function setupGDriveSettings() {
             } finally {
                 connectBtn.disabled = false;
                 connectBtn.innerHTML = originalHTML;
+                lucide.createIcons();
+            }
+        });
+    }
+}
+
+/**
+ * ====================================================
+ * 11. GOOGLE AUTH, PROFILE & COMMENTS FEED CONTROLLERS
+ * ====================================================
+ */
+let currentLoggedUser = null;
+let activeCommentsUnsubscribe = null;
+let currentChatPhotoFile = null;
+
+function setupAuthObserver() {
+    if (window.TaskDB.mode !== 'firebase' || typeof firebase === 'undefined') {
+        currentLoggedUser = null;
+        updateUserUI();
+        return;
+    }
+    
+    firebase.auth().onAuthStateChanged(async (user) => {
+        if (user) {
+            currentLoggedUser = user;
+            await window.TaskDB.saveUserProfile(user);
+            console.log("Logged in user:", user.displayName);
+        } else {
+            currentLoggedUser = null;
+            console.log("No user logged in.");
+        }
+        updateUserUI();
+        await populateAssigneesList();
+        
+        if (AppState.currentView === 'profile') {
+            renderProfilePage();
+        }
+    });
+}
+
+function updateUserUI() {
+    const sidebarCard = document.getElementById('sidebar-user-card');
+    const sidebarAvatar = document.getElementById('sidebar-user-avatar');
+    const sidebarName = document.getElementById('sidebar-user-name');
+    const sidebarEmail = document.getElementById('sidebar-user-email');
+    
+    if (currentLoggedUser) {
+        if (sidebarCard) sidebarCard.classList.remove('hidden');
+        if (sidebarAvatar) sidebarAvatar.src = currentLoggedUser.photoURL || '';
+        if (sidebarName) sidebarName.textContent = currentLoggedUser.displayName || 'พนักงาน';
+        if (sidebarEmail) sidebarEmail.textContent = currentLoggedUser.email || '';
+    } else {
+        if (sidebarCard) sidebarCard.classList.add('hidden');
+    }
+}
+
+function setupProfileView() {
+    const loginBtn = document.getElementById('btn-google-login');
+    const logoutBtn = document.getElementById('btn-google-logout');
+    const saveNotesBtn = document.getElementById('btn-save-quick-notes');
+    
+    if (loginBtn) {
+        loginBtn.addEventListener('click', async () => {
+            try {
+                loginBtn.disabled = true;
+                loginBtn.textContent = 'กำลังลงชื่อเข้าใช้...';
+                await window.TaskDB.signInWithGoogle();
+                alert("ลงชื่อเข้าใช้ด้วย Google สำเร็จ! 🎉");
+            } catch (err) {
+                console.error(err);
+                alert("ไม่สามารถเข้าสู่ระบบได้: " + err.message);
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="white" style="margin-right: 4px;">
+                        <path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C17.955 2.192 15.34 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c5.895 0 9.815-4.14 9.815-10 0-.673-.072-1.185-.16-1.695H12.24z"/>
+                    </svg>
+                    <span>เข้าสู่ระบบด้วย Google Account</span>
+                `;
+            }
+        });
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            if (confirm("คุณแน่ใจว่าต้องการออกจากระบบ Google หรือไม่?")) {
+                await window.TaskDB.signOut();
+                alert("ออกจากระบบเรียบร้อยแล้ว");
+            }
+        });
+    }
+    
+    if (saveNotesBtn) {
+        saveNotesBtn.addEventListener('click', () => {
+            const notesText = document.getElementById('profile-quick-notes').value.trim();
+            if (currentLoggedUser) {
+                localStorage.setItem(`finance_checklist_quicknotes_${currentLoggedUser.uid}`, notesText);
+                alert("บันทึกโน้ตย่อยส่วนตัวเรียบร้อยแล้ว! 💾");
+            }
+        });
+    }
+}
+
+function renderProfilePage() {
+    const loggedOutSection = document.getElementById('profile-logged-out');
+    const loggedInSection = document.getElementById('profile-logged-in');
+    
+    if (!currentLoggedUser) {
+        if (loggedOutSection) loggedOutSection.classList.remove('hidden');
+        if (loggedInSection) loggedInSection.classList.add('hidden');
+        return;
+    }
+    
+    if (loggedOutSection) loggedOutSection.classList.add('hidden');
+    if (loggedInSection) loggedInSection.classList.remove('hidden');
+    
+    const profileAvatar = document.getElementById('profile-user-avatar');
+    const profileName = document.getElementById('profile-user-name');
+    const profileEmail = document.getElementById('profile-user-email');
+    
+    if (profileAvatar) profileAvatar.src = currentLoggedUser.photoURL || '';
+    if (profileName) profileName.textContent = currentLoggedUser.displayName || 'พนักงาน';
+    if (profileEmail) profileEmail.textContent = currentLoggedUser.email || '';
+    
+    const quickNotesArea = document.getElementById('profile-quick-notes');
+    if (quickNotesArea) {
+        quickNotesArea.value = localStorage.getItem(`finance_checklist_quicknotes_${currentLoggedUser.uid}`) || '';
+    }
+    
+    const personalTasks = AppState.tasks.filter(t => t.assignedTo && t.assignedTo.uid === currentLoggedUser.uid);
+    const totalCount = personalTasks.length;
+    const completedCount = personalTasks.filter(t => t.status === 'เสร็จแล้ว').length;
+    const pendingCount = totalCount - completedCount;
+    const rate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+    
+    const statPending = document.getElementById('profile-stat-pending');
+    const statCompleted = document.getElementById('profile-stat-completed');
+    const statRate = document.getElementById('profile-stat-rate');
+    const progressBar = document.getElementById('profile-stat-progress-bar');
+    
+    if (statPending) statPending.textContent = pendingCount;
+    if (statCompleted) statCompleted.textContent = completedCount;
+    if (statRate) statRate.textContent = `${rate}%`;
+    if (progressBar) progressBar.style.width = `${rate}%`;
+    
+    const listContainer = document.getElementById('profile-assigned-tasks');
+    if (listContainer) {
+        listContainer.innerHTML = '';
+        if (personalTasks.length === 0) {
+            listContainer.innerHTML = `
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 2rem 0;">
+                    ไม่มีงานที่คุณรับผิดชอบในขณะนี้
+                </div>
+            `;
+        } else {
+            personalTasks.forEach(task => {
+                const item = document.createElement('div');
+                item.className = 'assigned-task-item';
+                const dueDetails = calculateDueDetails(task.dueDate, task.status);
+                
+                item.innerHTML = `
+                    <div class="assigned-task-meta">
+                        <div class="assigned-task-title">${task.title}</div>
+                        <div class="assigned-task-sub">
+                            <span class="due-indicator ${dueDetails.class}" style="padding: 0.1rem 0.3rem; border-radius: 4px; font-size: 0.7rem;">
+                                <i data-lucide="${dueDetails.icon}" style="width: 10px; height: 10px;"></i>
+                                <span>${dueDetails.text}</span>
+                            </span>
+                        </div>
+                    </div>
+                    <span class="status-badge ${getStatusClass(task.status)}" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">
+                        ${task.status}
+                    </span>
+                `;
+                
+                item.addEventListener('click', () => {
+                    openTaskDetailsModal(task.id);
+                });
+                
+                listContainer.appendChild(item);
+            });
+            lucide.createIcons();
+        }
+    }
+}
+
+async function populateAssigneesList() {
+    const select = document.getElementById('task-assignee-select');
+    if (!select) return;
+    
+    select.innerHTML = '<option value="">-- ไม่ระบุผู้รับผิดชอบ --</option>';
+    
+    if (window.TaskDB.mode === 'firebase') {
+        const users = await window.TaskDB.getAllUsers();
+        users.forEach(user => {
+            const opt = document.createElement('option');
+            opt.value = user.uid;
+            opt.textContent = `${user.displayName} (${user.email})`;
+            select.appendChild(opt);
+        });
+    }
+}
+
+function setupCommentsSection(taskId) {
+    if (activeCommentsUnsubscribe) {
+        activeCommentsUnsubscribe();
+        activeCommentsUnsubscribe = null;
+    }
+    
+    currentChatPhotoFile = null;
+    const photoStatus = document.getElementById('chat-photo-status');
+    if (photoStatus) photoStatus.textContent = '';
+    
+    const feed = document.getElementById('detail-chat-feed');
+    const inputWrapper = document.getElementById('detail-chat-input-wrapper');
+    
+    if (window.TaskDB.mode !== 'firebase') {
+        if (feed) feed.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1rem 0;">ระบบแสดงความคิดเห็นและรูปภาพเปิดใช้งานเฉพาะโหมดเชื่อมต่อคลาวด์ Firebase เท่านั้น</div>`;
+        if (inputWrapper) inputWrapper.style.display = 'none';
+        return;
+    }
+    
+    if (inputWrapper) {
+        if (currentLoggedUser) {
+            inputWrapper.style.display = 'block';
+        } else {
+            inputWrapper.style.display = 'none';
+            if (feed) feed.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 1.5rem 0;">กรุณาลงชื่อเข้าใช้งานด้วย Google Account ในแถบโปรไฟล์เพื่อรับสิทธิ์เปิดใช้งานฟีดความคิดเห็น แนบรูปภาพส่งทีมงาน</div>`;
+            return;
+        }
+    }
+    
+    activeCommentsUnsubscribe = window.TaskDB.getCommentsRealtime(taskId, (comments) => {
+        renderCommentsList(comments);
+    });
+}
+
+function renderCommentsList(comments) {
+    const feed = document.getElementById('detail-chat-feed');
+    if (!feed) return;
+    
+    feed.innerHTML = '';
+    
+    if (comments.length === 0) {
+        feed.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 2rem 0;">ยังไม่มีการแสดงความเห็นสำหรับงานนี้ ร่วมแชร์ข้อมูลหรือแนบรูปภาพคนแรก!</div>`;
+        return;
+    }
+    
+    comments.forEach(comment => {
+        const isSelf = currentLoggedUser && comment.senderUid === currentLoggedUser.uid;
+        const bubbleWrapper = document.createElement('div');
+        bubbleWrapper.className = `chat-bubble-wrapper ${isSelf ? 'self' : 'other'}`;
+        
+        const timestamp = formatDateString(comment.createdAt);
+        
+        bubbleWrapper.innerHTML = `
+            <img class="chat-avatar" src="${comment.senderAvatar || ''}" alt="Avatar">
+            <div class="chat-bubble-content">
+                <div class="chat-bubble-header">
+                    <span class="chat-sender-name">${comment.senderName}</span>
+                    <span class="chat-time">${timestamp}</span>
+                </div>
+                <div class="chat-bubble-text">
+                    ${comment.message}
+                    ${comment.photoUrl ? `
+                        <div>
+                            <img class="chat-attached-image" src="${comment.photoUrl}" alt="Attached Proof" onclick="window.open('${comment.photoUrl}', '_blank')">
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        feed.appendChild(bubbleWrapper);
+    });
+    
+    setTimeout(() => {
+        feed.scrollTop = feed.scrollHeight;
+    }, 50);
+}
+
+function setupCommentsInputListeners() {
+    const photoBtn = document.getElementById('btn-chat-upload-photo');
+    const photoInput = document.getElementById('chat-photo-input');
+    const sendBtn = document.getElementById('btn-send-comment');
+    const msgInput = document.getElementById('chat-message-input');
+    const photoStatus = document.getElementById('chat-photo-status');
+    
+    if (photoBtn && photoInput) {
+        photoBtn.addEventListener('click', () => photoInput.click());
+        photoInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                currentChatPhotoFile = e.target.files[0];
+                if (photoStatus) photoStatus.textContent = `ไฟล์ที่เลือก: ${currentChatPhotoFile.name}`;
+            }
+        });
+    }
+    
+    if (sendBtn) {
+        sendBtn.addEventListener('click', async () => {
+            const currentTitle = document.getElementById('detail-task-title').textContent;
+            const activeTask = AppState.tasks.find(t => t.title === currentTitle);
+            if (!activeTask) return;
+            
+            const message = msgInput.value.trim();
+            
+            if (!message && !currentChatPhotoFile) {
+                alert("กรุณาป้อนข้อความแสดงความเห็น หรือแนบรูปภาพก่อนกดส่ง");
+                return;
+            }
+            
+            sendBtn.disabled = true;
+            const originalHTML = sendBtn.innerHTML;
+            sendBtn.innerHTML = '<span>กำลังส่ง...</span>';
+            
+            try {
+                let photoUrl = '';
+                
+                if (currentChatPhotoFile) {
+                    if (window.TaskDB.isGDriveReady()) {
+                        if (photoStatus) photoStatus.textContent = 'กำลังอัปโหลดรูปภาพลง Google Drive...';
+                        const response = await window.TaskDB.uploadToGoogleDrive(
+                            `comment-${Date.now()}-${currentChatPhotoFile.name}`,
+                            currentChatPhotoFile.type,
+                            currentChatPhotoFile
+                        );
+                        photoUrl = response.webViewLink;
+                    } else {
+                        if (photoStatus) photoStatus.textContent = 'กำลังแปลงรูปภาพประกอบ...';
+                        const blobToDataURL = (blob) => {
+                            return new Promise((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => resolve(reader.result);
+                                reader.onerror = reject;
+                                reader.readAsDataURL(blob);
+                            });
+                        };
+                        photoUrl = await blobToDataURL(currentChatPhotoFile);
+                    }
+                }
+                
+                const comment = {
+                    taskId: activeTask.id,
+                    senderUid: currentLoggedUser.uid,
+                    senderName: currentLoggedUser.displayName,
+                    senderAvatar: currentLoggedUser.photoURL,
+                    message,
+                    photoUrl
+                };
+                
+                await window.TaskDB.saveComment(comment);
+                
+                msgInput.value = '';
+                currentChatPhotoFile = null;
+                if (photoStatus) photoStatus.textContent = '';
+                if (photoInput) photoInput.value = '';
+            } catch (err) {
+                console.error("Failed to send comment:", err);
+                alert("ส่งความคิดเห็นล้มเหลว: " + err.message);
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = originalHTML;
                 lucide.createIcons();
             }
         });

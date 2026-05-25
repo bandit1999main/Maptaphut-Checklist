@@ -661,6 +661,121 @@ window.TaskDB = {
     },
 
     // ==========================================
+    // AUTH & COLLABORATION OPERATIONS
+    // ==========================================
+
+    /**
+     * Sign In with Google Provider using Firebase Auth Compat
+     * @returns {Promise<firebase.auth.UserCredential>}
+     */
+    signInWithGoogle() {
+        if (this.mode !== 'firebase') {
+            return Promise.reject(new Error("กรุณาเชื่อมต่อคลาวด์ Firebase ก่อนเข้าสู่ระบบด้วย Google"));
+        }
+        const provider = new firebase.auth.GoogleAuthProvider();
+        return firebase.auth().signInWithPopup(provider);
+    },
+
+    /**
+     * Sign Out from Firebase Auth
+     * @returns {Promise<void>}
+     */
+    signOut() {
+        if (this.mode !== 'firebase') {
+            return Promise.resolve();
+        }
+        return firebase.auth().signOut();
+    },
+
+    /**
+     * Save user profile info to Firestore
+     * @param {Object} user 
+     * @returns {Promise<Boolean>}
+     */
+    saveUserProfile(user) {
+        if (this.mode !== 'firebase') return Promise.resolve(false);
+        const userProfile = {
+            uid: user.uid,
+            displayName: user.displayName || 'พนักงาน',
+            email: user.email || '',
+            photoURL: user.photoURL || '',
+            lastSeen: new Date().toISOString()
+        };
+        return this.firestore.collection(`${this.prefix}users`).doc(user.uid).set(userProfile, { merge: true })
+            .then(() => true)
+            .catch(err => {
+                console.error("Failed to save user profile:", err);
+                return false;
+            });
+    },
+
+    /**
+     * Get all users registered in this Firebase system
+     * @returns {Promise<Array>}
+     */
+    getAllUsers() {
+        if (this.mode !== 'firebase') return Promise.resolve([]);
+        return this.firestore.collection(`${this.prefix}users`).get().then(snapshot => {
+            const users = [];
+            snapshot.forEach(doc => users.push(doc.data()));
+            return users;
+        }).catch(err => {
+            console.error("Failed to get users:", err);
+            return [];
+        });
+    },
+
+    /**
+     * Save a comment/message to Firestore
+     * @param {Object} comment { taskId, senderUid, senderName, senderAvatar, message, photoUrl }
+     * @returns {Promise<Boolean>}
+     */
+    saveComment(comment) {
+        if (this.mode !== 'firebase') {
+            console.warn("Comments are only available in Firebase Cloud mode");
+            return Promise.resolve(false);
+        }
+        
+        const docId = this.firestore.collection(`${this.prefix}comments`).doc().id;
+        const newComment = {
+            id: docId,
+            taskId: comment.taskId,
+            senderUid: comment.senderUid,
+            senderName: comment.senderName,
+            senderAvatar: comment.senderAvatar,
+            message: comment.message || '',
+            photoUrl: comment.photoUrl || '',
+            createdAt: new Date().toISOString()
+        };
+        
+        return this.firestore.collection(`${this.prefix}comments`).doc(docId).set(newComment).then(() => true);
+    },
+
+    /**
+     * Listen to task comments feed in real time
+     * @param {String} taskId 
+     * @param {Function} onUpdateCallback 
+     * @returns {Function} Unsubscribe function
+     */
+    getCommentsRealtime(taskId, onUpdateCallback) {
+        if (this.mode !== 'firebase') {
+            onUpdateCallback([]);
+            return () => {};
+        }
+        
+        return this.firestore.collection(`${this.prefix}comments`)
+            .where('taskId', '==', taskId)
+            .onSnapshot((snapshot) => {
+                const comments = [];
+                snapshot.forEach(doc => comments.push(doc.data()));
+                comments.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                onUpdateCallback(comments);
+            }, (error) => {
+                console.error("Comments subscription failed:", error);
+            });
+    },
+
+    // ==========================================
     // MIGRATION UTILITY
     // ==========================================
 
