@@ -48,9 +48,146 @@ const AppState = {
     pendingFiles: [], // Attached files in creation modal
     selectedCategoryColor: PRESETS_COLORS[0],
     
+    // My Tasks filter toggle
+    filterMyTasks: false,
+    
     // Auto-update timer
     countdownInterval: null
 };
+
+// ====================================================
+// 2b. TOAST NOTIFICATION SYSTEM
+// ====================================================
+
+/**
+ * Show a non-blocking cozy toast notification
+ * @param {string} message — The message to display
+ * @param {'success'|'error'|'info'|'warning'} type — Toast type
+ * @param {number} duration — Duration in ms (default 4500)
+ */
+function showToast(message, type = 'success', duration = 4500) {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    
+    const icons = {
+        success: '✅',
+        error: '❌',
+        info: 'ℹ️',
+        warning: '⚠️'
+    };
+    
+    const borderColors = {
+        success: 'var(--status-done)',
+        error: 'var(--status-canc)',
+        info: 'var(--accent-indigo)',
+        warning: 'var(--warning-orange)'
+    };
+    
+    const toast = document.createElement('div');
+    toast.className = 'cozy-toast';
+    toast.style.borderLeftColor = borderColors[type] || borderColors.info;
+    toast.innerHTML = `
+        <span style="font-size: 1.1rem; flex-shrink: 0;">${icons[type] || icons.info}</span>
+        <span style="flex-grow: 1; line-height: 1.45;">${message}</span>
+        <button onclick="this.parentElement.remove()" style="background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1rem; flex-shrink: 0; padding: 0 0 0 0.25rem;">✕</button>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.animation = 'toastFadeOut 0.3s ease forwards';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, duration);
+}
+
+/**
+ * Show a cozy confirmation dialog (replaces browser confirm())
+ * Returns a Promise<boolean>
+ * @param {string} message
+ * @param {string} confirmLabel
+ * @param {'danger'|'normal'} mode
+ */
+function showConfirm(message, confirmLabel = 'ยืนยัน', mode = 'normal') {
+    return new Promise((resolve) => {
+        // Remove existing dialogs
+        const existingDialog = document.getElementById('cozy-confirm-dialog');
+        if (existingDialog) existingDialog.remove();
+        
+        const btnColor = mode === 'danger'
+            ? 'background: rgba(189,120,120,0.9); border: none; color: #fff;'
+            : 'background: var(--primary-grad); border: none; color: #fff;';
+        
+        const dialog = document.createElement('div');
+        dialog.id = 'cozy-confirm-dialog';
+        dialog.style.cssText = `
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(43, 41, 39, 0.45);
+            backdrop-filter: blur(8px);
+            z-index: 99999;
+            display: flex; align-items: center; justify-content: center;
+            padding: 1.5rem;
+            animation: fadeIn 0.2s ease;
+        `;
+        dialog.innerHTML = `
+            <div style="
+                background: #faf9f6;
+                border: 1px solid var(--glass-border);
+                border-radius: 16px;
+                padding: 2rem;
+                max-width: 400px;
+                width: 100%;
+                box-shadow: 0 20px 50px rgba(163,154,137,0.2);
+                text-align: center;
+            ">
+                <div style="font-size: 2rem; margin-bottom: 0.75rem;">🤔</div>
+                <p style="font-size: 0.95rem; color: var(--text-primary); line-height: 1.55; margin-bottom: 1.5rem;">${message}</p>
+                <div style="display: flex; gap: 0.75rem; justify-content: center;">
+                    <button id="cozy-confirm-cancel" style="
+                        padding: 0.65rem 1.5rem;
+                        border-radius: 8px;
+                        border: 1px solid var(--glass-border);
+                        background: #fff;
+                        color: var(--text-primary);
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-size: 0.9rem;
+                    ">ยกเลิก</button>
+                    <button id="cozy-confirm-ok" style="
+                        padding: 0.65rem 1.5rem;
+                        border-radius: 8px;
+                        ${btnColor}
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-size: 0.9rem;
+                    ">${confirmLabel}</button>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+        
+        dialog.querySelector('#cozy-confirm-ok').addEventListener('click', () => {
+            dialog.remove();
+            resolve(true);
+        });
+        
+        dialog.querySelector('#cozy-confirm-cancel').addEventListener('click', () => {
+            dialog.remove();
+            resolve(false);
+        });
+        
+        // Click outside to dismiss
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                dialog.remove();
+                resolve(false);
+            }
+        });
+    });
+}
 
 // ====================================================
 // 3. INITIALIZATION & DATA LOADING
@@ -91,7 +228,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log("Application started successfully");
     } catch (err) {
         console.error("Critical start failure", err);
-        alert("ไม่สามารถเปิดระบบฐานข้อมูลในเครื่องได้ กรุณารีเฟรชหรือสลับเบราว์เซอร์");
+        showToast("ไม่สามารถเปิดระบบฐานข้อมูลในเครื่องได้ กรุณารีเฟรชหรือสลับเบราว์เซอร์", 'error', 8000);
     }
 });
 
@@ -400,6 +537,76 @@ function renderDashboard() {
     renderStatusDonutChart();
     renderWorkloadBreakdown();
     renderDashboardAlerts();
+    
+    // Team Workload — only show in Firebase Cloud mode
+    renderTeamWorkloadDashboard();
+}
+
+/**
+ * Renders per-person workload breakdown on dashboard (Firebase mode only)
+ */
+async function renderTeamWorkloadDashboard() {
+    const card = document.getElementById('dashboard-team-analytics-card');
+    const list = document.getElementById('team-workload-list');
+    if (!card || !list) return;
+    
+    // Only show this section when in Firebase cloud mode
+    if (window.TaskDB.mode !== 'firebase') {
+        card.style.display = 'none';
+        return;
+    }
+    
+    card.style.display = '';
+    list.innerHTML = '';
+    
+    // Group tasks by assignee
+    const assigneeMap = {};
+    AppState.tasks.forEach(task => {
+        if (!task.assignedTo || !task.assignedTo.uid) return;
+        const uid = task.assignedTo.uid;
+        if (!assigneeMap[uid]) {
+            assigneeMap[uid] = {
+                displayName: task.assignedTo.displayName,
+                photoURL: task.assignedTo.photoURL || '',
+                total: 0,
+                completed: 0
+            };
+        }
+        assigneeMap[uid].total++;
+        if (task.status === 'เสร็จแล้ว') {
+            assigneeMap[uid].completed++;
+        }
+    });
+    
+    const uids = Object.keys(assigneeMap);
+    
+    if (uids.length === 0) {
+        list.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:0.85rem; padding:1rem 0;">ยังไม่มีการมอบหมายงานให้ทีมงาน</div>`;
+        return;
+    }
+    
+    uids.forEach(uid => {
+        const member = assigneeMap[uid];
+        const pct = member.total > 0 ? Math.round((member.completed / member.total) * 100) : 0;
+        
+        const item = document.createElement('div');
+        item.className = 'workload-item';
+        item.innerHTML = `
+            <div class="workload-info">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <img src="${member.photoURL}" alt="Avatar"
+                         style="width:22px; height:22px; border-radius:50%; border:1.5px solid var(--glass-border); background:#eee;"
+                         onerror="this.style.display='none'">
+                    <span class="workload-name">${member.displayName}</span>
+                </div>
+                <span class="workload-count"><span>${member.completed}</span> / ${member.total} งาน</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill" style="width:${pct}%; background:var(--accent-earth);"></div>
+            </div>
+        `;
+        list.appendChild(item);
+    });
 }
 
 // Render dynamic interactive SVG Donut chart
@@ -652,7 +859,11 @@ function renderTasksList() {
         const matchesStatus = statusVal === 'all' || task.status === statusVal;
         const matchesCategory = categoryVal === 'all' || task.categoryId === categoryVal;
         
-        return matchesSearch && matchesStatus && matchesCategory;
+        // "งานของฉัน" filter — only show tasks assigned to the current logged-in user
+        const matchesMyTasks = !AppState.filterMyTasks || 
+            (currentLoggedUser && task.assignedTo && task.assignedTo.uid === currentLoggedUser.uid);
+        
+        return matchesSearch && matchesStatus && matchesCategory && matchesMyTasks;
     });
 
     // Sort tasks array
@@ -804,6 +1015,26 @@ function setupTaskForm() {
     statusSelect.addEventListener('change', renderTasksList);
     categorySelect.addEventListener('change', renderTasksList);
     sortSelect.addEventListener('change', renderTasksList);
+    
+    // "งานของฉัน" filter button toggle
+    const myTasksBtn = document.getElementById('btn-filter-my-tasks');
+    if (myTasksBtn) {
+        myTasksBtn.addEventListener('click', () => {
+            AppState.filterMyTasks = !AppState.filterMyTasks;
+            if (AppState.filterMyTasks) {
+                myTasksBtn.classList.add('active-filter');
+                if (!currentLoggedUser) {
+                    showToast('กรุณาลงชื่อเข้าใช้ก่อนเพื่อกรองงานของตัวเอง', 'warning');
+                    AppState.filterMyTasks = false;
+                    myTasksBtn.classList.remove('active-filter');
+                    return;
+                }
+            } else {
+                myTasksBtn.classList.remove('active-filter');
+            }
+            renderTasksList();
+        });
+    }
     
     // Add/Edit Modal controls
     const btnCloseTaskModal = document.getElementById('btn-close-task-modal');
@@ -1069,9 +1300,15 @@ async function saveTaskSubmit() {
 
 // Remove task completely
 async function confirmDeleteTask(taskId, title) {
-    if (confirm(`คุณต้องการลบงาน "${title}" และเอกสารแนบทั้งหมดใช่หรือไม่?\n(การกระทำนี้ไม่สามารถย้อนคืนได้)`)) {
+    const confirmed = await showConfirm(
+        `คุณต้องการลบงาน "${title}" และเอกสารแนบทั้งหมดใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนคืนได้`,
+        'ลบงานออก',
+        'danger'
+    );
+    if (confirmed) {
         await window.TaskDB.deleteTask(taskId);
         await loadTasks();
+        showToast(`ลบงาน "${title}" เรียบร้อยแล้ว`, 'info');
         
         if (AppState.currentView === 'dashboard') {
             renderDashboard();
@@ -1223,7 +1460,7 @@ async function openTaskDetailsModal(taskId) {
 async function downloadAttachmentFile(attachmentId) {
     const att = await window.TaskDB.getAttachment(attachmentId);
     if (!att) {
-        alert("ไม่พบไฟล์เอกสารแนบ หรือไฟล์เกิดข้อผิดพลาด");
+        showToast('ไม่พบไฟล์เอกสารแนบ หรือไฟล์เกิดข้อผิดพลาด', 'error');
         return;
     }
     
@@ -1242,7 +1479,7 @@ async function downloadAttachmentFile(attachmentId) {
     }
 
     if (!att.blob) {
-        alert("ไม่สามารถเข้าถึงไฟล์เอกสารแนบชิ้นนี้ได้");
+        showToast('ไม่สามารถเข้าถึงไฟล์เอกสารแนบชิ้นนี้ได้', 'error');
         return;
     }
     
@@ -1393,7 +1630,7 @@ function cancelCategoryEditing() {
 async function saveCategorySubmit() {
     const name = document.getElementById('category-name-input').value.trim();
     if (!name) {
-        alert("กรุณาระบุชื่อหมวดหมู่งาน");
+        showToast('กรุณาระบุชื่อหมวดหมู่งาน', 'warning');
         return;
     }
     
@@ -1412,18 +1649,21 @@ async function saveCategorySubmit() {
     await loadCategories();
     cancelCategoryEditing();
     renderCategoriesList();
+    showToast(isEdit ? `อัปเดตหมวดหมู่ "${name}" เรียบร้อยแล้ว` : `สร้างหมวดหมู่ "${name}" เรียบร้อยแล้ว`, 'success');
 }
 
 async function confirmDeleteCategory(catId, name, taskCount) {
     if (taskCount > 0) {
-        alert(`ไม่สามารถลบหมวดหมู่ "${name}" ได้ เนื่องจากยังมีงานในระบบที่ใช้งานหมวดหมู่นี้อยู่จำนวน ${taskCount} งาน\nกรุณาย้ายงานเหล่านั้นไปหมวดหมู่อื่นก่อนทำการลบ`);
+        showToast(`ไม่สามารถลบหมวดหมู่ "${name}" ได้ เนื่องจากยังมีงาน ${taskCount} งานอยู่ในหมวดหมู่นี้`, 'warning', 6000);
         return;
     }
     
-    if (confirm(`คุณต้องการลบหมวดหมู่ "${name}" ใช่หรือไม่?`)) {
+    const confirmed = await showConfirm(`คุณต้องการลบหมวดหมู่ "${name}" ใช่หรือไม่?`, 'ลบหมวดหมู่', 'danger');
+    if (confirmed) {
         await window.TaskDB.deleteCategory(catId);
         await loadCategories();
         renderCategoriesList();
+        showToast(`ลบหมวดหมู่ "${name}" เรียบร้อยแล้ว`, 'info');
     }
 }
 
@@ -1627,7 +1867,7 @@ function setupSyncSettings() {
         const prefix = prefixInput.value.trim() || 'finance_';
 
         if (!apiKey || !projectId) {
-            alert("กรุณากรอกข้อมูล apiKey และ projectId เป็นอย่างน้อย");
+            showToast('กรุณากรอกข้อมูล apiKey และ projectId เป็นอย่างน้อย', 'warning');
             return;
         }
 
@@ -1654,18 +1894,18 @@ function setupSyncSettings() {
             const initMode = await window.TaskDB.init();
 
             if (initMode === 'firebase') {
-                alert("เชื่อมต่อ Google Firebase Cloud สำเร็จแล้ว! 🎉");
+                showToast('เชื่อมต่อ Google Firebase Cloud สำเร็จแล้ว! 🎉', 'success');
                 // Reload state with new database
                 await loadCategories();
                 await loadTasks();
                 updateDbModeUI();
                 renderSyncSettings();
             } else {
-                throw new Error("เชื่อมต่อไม่สำเร็จ");
+                throw new Error('เชื่อมต่อไม่สำเร็จ');
             }
         } catch (e) {
             console.error("Firebase connection error:", e);
-            alert("ไม่สามารถเชื่อมต่อ Firebase ได้ กรุณาตรวจสอบข้อมูลคีย์หรือสิทธิ์การเข้าถึงอีกครั้ง (ฐานข้อมูลถูกสลับกลับไปใช้งานในเครื่องตามเดิม)");
+            showToast('ไม่สามารถเชื่อมต่อ Firebase ได้ กรุณาตรวจสอบคีย์หรือสิทธิ์การเข้าถึงอีกครั้ง', 'error', 7000);
             // Clean up invalid keys
             localStorage.removeItem('finance_checklist_firebase_config');
             window.TaskDB.mode = 'local';
@@ -1681,16 +1921,19 @@ function setupSyncSettings() {
 
     // Disconnect Sync Connection
     disconnectBtn.addEventListener('click', async () => {
-        if (!confirm("คุณต้องการตัดการเชื่อมต่อกับ Cloud และสลับกลับไปใช้งานเฉพาะข้อมูลในเครื่องคอมพิวเตอร์นี้ใช่หรือไม่?")) {
-            return;
-        }
+        const confirmed = await showConfirm(
+            'คุณต้องการตัดการเชื่อมต่อกับ Cloud และสลับกลับไปใช้ข้อมูลในเครื่องใช่หรือไม่?',
+            'ตัดการเชื่อมต่อ',
+            'danger'
+        );
+        if (!confirmed) return;
 
         localStorage.removeItem('finance_checklist_firebase_config');
         localStorage.setItem('finance_checklist_local_override', 'true'); // Persist local override
         window.TaskDB.mode = 'local';
         await window.TaskDB.init();
 
-        alert("ตัดการเชื่อมต่อคลาวด์แล้ว ระบบถูกสลับกลับไปใช้งานข้อมูลในเครื่อง IndexedDB ตามเดิม");
+        showToast('ตัดการเชื่อมต่อคลาวด์แล้ว ระบบสลับกลับใช้ IndexedDB ในเครื่อง', 'info');
         
         await loadCategories();
         await loadTasks();
@@ -1700,9 +1943,11 @@ function setupSyncSettings() {
 
     // Migrate Local Data to Cloud
     migrateBtn.addEventListener('click', async () => {
-        if (!confirm("คำเตือน: คุณแน่ใจหรือไม่ว่าต้องการนำส่งข้อมูลงานทั้งหมดที่เก็บอยู่ในคอมพิวเตอร์เครื่องนี้ ขึ้นไปรวมไว้บนระบบ Firebase Cloud? การซิงค์นี้อาจใช้เวลาครู่หนึ่งในกรณีที่คุณมีรูปภาพหรือเอกสารแนบหลายไฟล์")) {
-            return;
-        }
+        const confirmed = await showConfirm(
+            'คำเตือน: คุณแน่ใจหรือไม่ว่าต้องการนำส่งข้อมูลงานทั้งหมดย้ายขึ้น Firebase Cloud?',
+            'ยืนยันซิงค์ขึ้น Cloud'
+        );
+        if (!confirmed) return;
 
         const progressContainer = document.getElementById('migration-progress-container');
         const progressBar = document.getElementById('migration-progress-bar');
@@ -1726,7 +1971,7 @@ function setupSyncSettings() {
             // Reload views
             renderSyncSettings();
             
-            alert("ระบบนำส่งและย้ายข้อมูลขึ้น Cloud เรียบร้อยสมบูรณ์แล้ว! 🚀");
+            showToast('นำส่งและย้ายข้อมูลขึ้น Cloud สมบูรณ์แล้ว! 🚀', 'success');
             
             // Auto hide progress bar after 3 seconds
             setTimeout(() => {
@@ -1736,7 +1981,7 @@ function setupSyncSettings() {
 
         } catch (e) {
             console.error("Migration failed:", e);
-            alert("เกิดข้อผิดพลาดระหว่างซิงค์ข้อมูล: " + e.message);
+            showToast('เกิดข้อผิดพลาดระหว่างซิงค์ข้อมูล: ' + e.message, 'error', 7000);
             migrateBtn.disabled = false;
             progressContainer.classList.add('hidden');
         }
@@ -1823,12 +2068,12 @@ function setupGDriveSettings() {
             const folderId = document.getElementById('gdrive-folder-id').value.trim();
 
             if (!clientId || !apiKey) {
-                alert("กรุณากรอก Google Client ID และ Developer API Key ก่อนทำการบันทึก");
+                showToast('กรุณากรอก Google Client ID และ Developer API Key ก่อนทำการบันทึก', 'warning');
                 return;
             }
 
             window.TaskDB.saveGDriveConfig(clientId, apiKey, folderId);
-            alert("บันทึกคอนฟิกสำเร็จ! 💾\nขั้นตอนสุดท้าย: กรุณากดปุ่ม 'ลงชื่อเข้าใช้งาน Google Drive' สีส้มด้านข้าง เพื่อทำสิทธิ์ OAuth 2.0");
+            showToast('บันทึกคอนฟิก Google Drive สำเร็จ! 💾 กรุณากดปุ่มลงชื่อเข้าใช้ OAuth ด้านขวา', 'success', 6000);
             renderGDriveSettings();
         });
     }
@@ -1837,7 +2082,7 @@ function setupGDriveSettings() {
         connectBtn.addEventListener('click', async () => {
             const config = window.TaskDB.gdriveConfig;
             if (!config.clientId) {
-                alert("กรุณากรอกข้อมูล Google Client ID ด้านซ้ายมือ และกดบันทึกก่อนเชื่อมต่อ");
+                showToast('กรุณากรอก Google Client ID และกดบันทึกก่อนเชื่อมต่อ', 'warning');
                 return;
             }
 
@@ -1848,12 +2093,12 @@ function setupGDriveSettings() {
             try {
                 const token = await window.TaskDB.signInGDrive();
                 if (token) {
-                    alert("เชื่อมต่อบัญชี Google Drive เรียบร้อยแล้ว! 🎉 ระบบพร้อมใช้จัดเก็บไฟล์แนบทั้งหมดทันที");
+                    showToast('เชื่อมต่อ Google Drive เรียบร้อยแล้ว! 🎉 ระบบพร้อมใช้จัดเก็บไฟล์แนบ', 'success');
                 }
                 renderGDriveSettings();
             } catch (err) {
                 console.error("Google Drive implicit connection failure:", err);
-                alert("การเชื่อมต่อบัญชีล้มเหลว: " + err.message);
+                showToast('การเชื่อมต่อ Google Drive ล้มเหลว: ' + err.message, 'error', 7000);
             } finally {
                 connectBtn.disabled = false;
                 connectBtn.innerHTML = originalHTML;
@@ -1937,27 +2182,14 @@ function setupProfileView() {
             const originalHTML = buttonEl.innerHTML;
             buttonEl.textContent = 'กำลังลงชื่อเข้าใช้...';
             await window.TaskDB.signInWithGoogle();
-            alert("ลงชื่อเข้าใช้ด้วย Google สำเร็จ! 🎉");
+            showToast('ลงชื่อเข้าใช้ด้วย Google สำเร็จ! 🎉', 'success');
         } catch (err) {
             console.error(err);
-            alert("ไม่สามารถเข้าสู่ระบบได้: " + err.message);
+            showToast('ไม่สามารถเข้าสู่ระบบได้: ' + err.message, 'error', 6000);
         } finally {
             buttonEl.disabled = false;
-            if (buttonEl.id === 'btn-lock-login') {
-                buttonEl.innerHTML = `
-                    <svg viewBox="0 0 24 24" width="20" height="20" fill="white" style="margin-right: 4px;">
-                        <path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C17.955 2.192 15.34 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c5.895 0 9.815-4.14 9.815-10 0-.673-.072-1.185-.16-1.695H12.24z"/>
-                    </svg>
-                    <span>เข้าสู่ระบบด้วย Google Account</span>
-                `;
-            } else {
-                buttonEl.innerHTML = `
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="white" style="margin-right: 4px;">
-                        <path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C17.955 2.192 15.34 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c5.895 0 9.815-4.14 9.815-10 0-.673-.072-1.185-.16-1.695H12.24z"/>
-                    </svg>
-                    <span>เข้าสู่ระบบด้วย Google Account</span>
-                `;
-            }
+            const googleSvgSmall = `<svg viewBox="0 0 24 24" width="18" height="18" fill="white" style="margin-right:4px;"><path d="M12.24 10.285V13.4h6.887c-.275 1.565-1.88 4.604-6.887 4.604-4.33 0-7.866-3.577-7.866-8s3.536-8 7.866-8c2.46 0 4.105 1.025 5.047 1.926l2.427-2.334C17.955 2.192 15.34 1 12.24 1 6.033 1 1 6.033 1 12.24s5.033 11.24 11.24 11.24c5.895 0 9.815-4.14 9.815-10 0-.673-.072-1.185-.16-1.695H12.24z"/></svg>`;
+            buttonEl.innerHTML = `${googleSvgSmall}<span>เข้าสู่ระบบด้วย Google Account</span>`;
         }
     };
 
@@ -1971,9 +2203,10 @@ function setupProfileView() {
     
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
-            if (confirm("คุณแน่ใจว่าต้องการออกจากระบบ Google หรือไม่?")) {
+            const confirmed = await showConfirm('คุณแน่ใจว่าต้องการออกจากระบบ Google หรือไม่?', 'ออกจากระบบ', 'danger');
+            if (confirmed) {
                 await window.TaskDB.signOut();
-                alert("ออกจากระบบเรียบร้อยแล้ว");
+                showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
             }
         });
     }
@@ -1983,7 +2216,7 @@ function setupProfileView() {
             const notesText = document.getElementById('profile-quick-notes').value.trim();
             if (currentLoggedUser) {
                 localStorage.setItem(`finance_checklist_quicknotes_${currentLoggedUser.uid}`, notesText);
-                alert("บันทึกโน้ตย่อยส่วนตัวเรียบร้อยแล้ว! 💾");
+                showToast('บันทึกโน้ตย่อยส่วนตัวเรียบร้อยแล้ว! 💾', 'success');
             }
         });
     }
@@ -2069,6 +2302,64 @@ function renderProfilePage() {
             });
             lucide.createIcons();
         }
+    }
+    
+    // Render team directory in profile card
+    renderTeamDirectory();
+}
+
+/**
+ * Load and render team members list in the profile card
+ */
+async function renderTeamDirectory() {
+    const listEl = document.getElementById('profile-team-list');
+    if (!listEl) return;
+    
+    if (window.TaskDB.mode !== 'firebase') {
+        listEl.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:0.82rem; padding:0.75rem 0;">ใช้งานในโหมด Cloud Firebase เพื่อดูรายชื่อทีมงาน</div>`;
+        return;
+    }
+    
+    listEl.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:0.82rem; padding:0.5rem;">กำลังโหลดรายชื่อทีมงาน...</div>`;
+    
+    try {
+        const users = await window.TaskDB.getAllUsers();
+        listEl.innerHTML = '';
+        
+        if (users.length === 0) {
+            listEl.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:0.82rem; padding:0.75rem 0;">ยังไม่มีทีมงานในระบบ</div>`;
+            return;
+        }
+        
+        // Determine online status by lastSeen within 15 minutes
+        const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+        
+        users
+            .sort((a, b) => (b.lastSeen || '').localeCompare(a.lastSeen || ''))
+            .forEach(user => {
+                const isOnline = user.lastSeen && user.lastSeen > fifteenMinAgo;
+                const isMe = currentLoggedUser && user.uid === currentLoggedUser.uid;
+                
+                const row = document.createElement('div');
+                row.className = 'team-member-row';
+                row.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:0.6rem; overflow:hidden;">
+                        <img class="member-avatar" src="${user.photoURL || ''}" alt="Avatar"
+                             onerror="this.src=''; this.style.background='var(--glass-border)'">
+                        <div style="overflow:hidden;">
+                            <div style="font-size:0.82rem; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                ${user.displayName || 'พนักงาน'}${isMe ? ' <span style="font-size:0.7rem; color:var(--accent-earth);">(คุณ)</span>' : ''}
+                            </div>
+                            <div style="font-size:0.72rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${user.email || ''}</div>
+                        </div>
+                    </div>
+                    <div class="member-dot ${isOnline ? 'online' : 'offline'}" title="${isOnline ? 'ออนไลน์ล่าสุดภายใน 15 นาที' : 'ออฟไลน์'}"></div>
+                `;
+                listEl.appendChild(row);
+            });
+    } catch (err) {
+        console.error('Failed to load team directory:', err);
+        listEl.innerHTML = `<div style="text-align:center; color:var(--text-muted); font-size:0.82rem; padding:0.5rem;">โหลดรายชื่อทีมไม่สำเร็จ</div>`;
     }
 }
 
@@ -2192,7 +2483,7 @@ function setupCommentsInputListeners() {
             const message = msgInput.value.trim();
             
             if (!message && !currentChatPhotoFile) {
-                alert("กรุณาป้อนข้อความแสดงความเห็น หรือแนบรูปภาพก่อนกดส่ง");
+                showToast('กรุณาพิมพ์ข้อความหรือแนบรูปภาพก่อนกดส่ง', 'warning');
                 return;
             }
             
@@ -2243,7 +2534,7 @@ function setupCommentsInputListeners() {
                 if (photoInput) photoInput.value = '';
             } catch (err) {
                 console.error("Failed to send comment:", err);
-                alert("ส่งความคิดเห็นล้มเหลว: " + err.message);
+                showToast('ส่งความคิดเห็นล้มเหลว: ' + err.message, 'error', 6000);
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.innerHTML = originalHTML;

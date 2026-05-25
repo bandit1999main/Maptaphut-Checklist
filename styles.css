@@ -53,6 +53,14 @@
     --warning-orange: #b58970;
     --warning-yellow: #c5a059;
     
+    /* Accent Earth Tone (used broadly in chat bubbles, buttons, badges) */
+    --accent-earth: #b58970;  /* Warm Clay / Terracotta */
+    
+    /* Box Shadow Scales */
+    --shadow-xs: 0 2px 8px rgba(163, 154, 137, 0.06);
+    --shadow-sm: 0 4px 15px rgba(163, 154, 137, 0.10);
+    --shadow-md: 0 8px 30px rgba(163, 154, 137, 0.14);
+    
     /* Formatting */
     --radius-sm: 8px;
     --radius-md: 12px;
@@ -2315,4 +2323,81 @@ main.main-content {
 
 .chat-input-box textarea:focus {
     outline: none !important;
+}
+
+/* Cozy Toast Notifications */
+.cozy-toast {
+    background: rgba(250, 249, 246, 0.96);
+    border: 1px solid var(--glass-border);
+    border-left: 4px solid var(--accent-earth);
+    border-radius: 8px;
+    padding: 0.85rem 1.25rem;
+    box-shadow: 0 10px 25px rgba(163, 154, 137, 0.15);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    pointer-events: auto;
+    width: 100%;
+    animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+               toastFadeOut 0.3s 4.7s ease forwards;
+}
+
+@keyframes toastSlideIn {
+    from { transform: translateX(100%) translateY(10px); opacity: 0; }
+    to { transform: translateX(0) translateY(0); opacity: 1; }
+}
+
+@keyframes toastFadeOut {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.9); }
+}
+
+/* Team active list avatars */
+.team-member-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    transition: background 0.2s ease;
+}
+
+.team-member-row:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.member-avatar {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 1px solid var(--glass-border);
+    flex-shrink: 0;
+}
+
+.member-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.member-dot.online {
+    background: var(--status-done);
+    box-shadow: 0 0 6px var(--status-done);
+}
+
+.member-dot.offline {
+    background: #ccc;
+}
+
+/* My Tasks active button accent */
+#btn-filter-my-tasks.active-filter {
+    background: var(--accent-earth) !important;
+    color: white !important;
+    border-color: var(--accent-earth) !important;
+    box-shadow: 0 2px 8px rgba(181, 137, 112, 0.3);
 }

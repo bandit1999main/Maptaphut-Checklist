@@ -235,6 +235,17 @@
                         </div>
                     </div>
 
+                    <!-- Team Workload Breakdown -->
+                    <div class="glass-card workload-section" id="dashboard-team-analytics-card" style="display: none;">
+                        <div class="chart-title">
+                            <i data-lucide="users" style="color: var(--accent-earth);"></i>
+                            <span>ภาระงานรายบุคคล (Team Workload Breakdown)</span>
+                        </div>
+                        <div class="workload-list" id="team-workload-list">
+                            <!-- Dynamic team progress bars will be inserted here -->
+                        </div>
+                    </div>
+
                     <!-- Urgent Due Date Alerts -->
                     <div class="glass-card alert-section">
                         <div class="chart-title" style="margin-bottom: 0.5rem;">
@@ -259,6 +270,11 @@
                         <i data-lucide="search"></i>
                         <input type="text" id="filter-search-input" placeholder="ค้นหาชื่องาน รายละเอียด...">
                     </div>
+                    
+                    <button class="btn-secondary" id="btn-filter-my-tasks" style="padding: 0.55rem 1rem; display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; border-radius: var(--radius-sm); border: 1px solid var(--glass-border); background: rgba(255,255,255,0.6); color: var(--text-secondary); cursor: pointer; transition: all var(--transition-fast);">
+                        <i data-lucide="user-check" style="width: 16px; height: 16px;"></i>
+                        <span>งานของฉัน</span>
+                    </button>
                     
                     <select class="select-filter" id="filter-status-select">
                         <option value="all">ทุกสถานะงาน</option>
@@ -593,6 +609,17 @@ const firebaseConfig = {
                             </div>
                         </div>
 
+                        <!-- Team Directory List -->
+                        <div style="width: 100%; text-align: left; margin-top: 1.5rem;">
+                            <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.4rem;">
+                                <i data-lucide="users" style="width: 16px; height: 16px; color: var(--accent-earth);"></i>
+                                <span>รายชื่อทีมงานตรวจบัญชี (Active Team)</span>
+                            </h4>
+                            <div class="profile-team-list" id="profile-team-list" style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 180px; overflow-y: auto; background: rgba(255, 255, 255, 0.3); border: 1px solid var(--glass-border); padding: 0.75rem; border-radius: 8px;">
+                                <!-- Team members loaded here -->
+                            </div>
+                        </div>
+
                         <button class="btn-secondary" id="btn-google-logout" style="margin-top: 2rem; width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem; color: var(--status-canc); border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.02);">
                             <i data-lucide="log-out" style="width: 16px; height: 16px;"></i>
                             <span>ออกจากระบบ (Logout)</span>
@@ -870,6 +897,9 @@ const firebaseConfig = {
     <script src="db.js"></script>
     <script src="app.js"></script>
     
+    <!-- Cozy Toast Notifications Container -->
+    <div id="toast-container" style="position: fixed; bottom: 24px; right: 24px; z-index: 999999; display: flex; flex-direction: column; gap: 0.75rem; pointer-events: none; max-width: 380px; width: 90%;"></div>
+
     <!-- Initialize Lucide Icons on launch -->
     <script>
         lucide.createIcons();
